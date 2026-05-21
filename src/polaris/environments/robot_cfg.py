@@ -1,15 +1,19 @@
+from pathlib import Path
+
 import numpy as np
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 
-from polaris.utils import DATA_PATH
+
+ROBOT_PATH = Path(__file__).resolve().parents[3] / "robot_descriptions"
+
 
 NVIDIA_DROID = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=str(DATA_PATH / "nvidia_droid/noninstanceable.usd"),
+        usd_path=f"{ROBOT_PATH}/nvidia_droid/noninstanceable.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
