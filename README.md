@@ -1,3 +1,22 @@
+# PolaRiS-UMI
+
+### Add environment
+```bash
+PolaRiS-Hub/
+```
+
+### Register tasks
+```bash
+src/polaris/environments/__init__.py
+```
+
+### Start evaluation
+```bash
+
+```
+
+
+
 <img src="docs/images/Teaser Figure.png">
 
 ---
