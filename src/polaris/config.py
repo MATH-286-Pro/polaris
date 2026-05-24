@@ -40,6 +40,11 @@ class PolicyArgs:
     host: str = "0.0.0.0"
     port: int = 8000
     open_loop_horizon: int | None = 8
+    trajectory_path: str | None = None
+    trajectory_index: int = 0
+    trajectory_stride: int = 1
+    trajectory_control_dt: float | None = 1.0 / 15.0
+    gripper_width_threshold: float | None = None
 
 
 @dataclass
