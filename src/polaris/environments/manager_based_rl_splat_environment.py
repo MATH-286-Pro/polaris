@@ -12,6 +12,7 @@ from pxr import Semantics
 
 from polaris.splat_renderer import SplatRenderer
 from polaris.environments.rubrics import Rubric
+from polaris.rendering import configure_rtx_scene_lighting
 
 
 class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
@@ -31,10 +32,22 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             self.usd_file = usd_file
             cfg.dynamic_setup(usd_file)
 
+        configure_rtx_scene_lighting()
         super().__init__(cfg=cfg, *args, **kwargs)
+        self._configure_reflection_rendering()
         self.setup_splat_world_and_robot_views()
         self.setup_splat_robot()
         self.rubric = rubric
+
+    def _configure_reflection_rendering(self) -> None:
+        """Use scene lighting for RTX secondary rays.
+
+        Some exported USD scenes enable view-lighting/headlight mode. That can
+        make directly visible meshes look fine while mirror reflections render
+        dark, because secondary rays do not receive the same viewport light.
+        """
+
+        configure_rtx_scene_lighting()
 
     def _evaluate_rubric(self) -> dict:
         """Evaluate rubric and return results for info dict."""

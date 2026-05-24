@@ -26,6 +26,9 @@ def main(eval_args: EvalArgs):
     args_cli.headless = eval_args.headless
     app_launcher = AppLauncher(args_cli)
     simulation_app = app_launcher.app
+    from polaris.rendering import configure_rtx_scene_lighting
+
+    configure_rtx_scene_lighting()
     # >>>> Isaac Sim App Launcher <<<<
 
     from isaaclab_tasks.utils import parse_env_cfg  # noqa: E402
