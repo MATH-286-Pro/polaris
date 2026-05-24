@@ -3,5 +3,6 @@ from .abstract_client import FakeClient, InferenceClient
 
 import polaris.policy.droid_jointpos_client
 import polaris.policy.umi_diffusion_client
+import polaris.policy.umi_trajectory_client
 
 __all__ = ["PolicyArgs", "FakeClient", "InferenceClient"]
