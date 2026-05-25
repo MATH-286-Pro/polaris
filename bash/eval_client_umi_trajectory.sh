@@ -16,13 +16,15 @@
 #     --run-folder runs/DROID-FoodBussing
 
 timestamp=$(date +"%Y%m%d_%H%M%S")
+taskname=$"UMI-FLAT"
+# taskname=$"UMI-PBL"
 
 HEADLESS=0 LIVESTREAM=0 uv run scripts/eval.py \
-  --environment PBL-UMI \
+  --environment ${taskname} \
   --policy.client UmiTrajectory \
   --policy.trajectory-path /home/ece-486/Documents/SP_PBL/umi-on-legs/data/tossing_converted.pkl \
   --policy.trajectory-index 0 \
   --policy.trajectory-control-dt 0.06666666666666667 \
   --policy.trajectory-stride 1 \
-  --run-folder "runs/umi_trajectory_test/${timestamp}" \
+  --run-folder "runs/${taskname}/${timestamp}" \
   --no-headless
