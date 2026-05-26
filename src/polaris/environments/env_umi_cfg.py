@@ -247,11 +247,12 @@ class UMIEnvCfg(BasicEnvCfg):
         self.viewer.eye = (0.8, -0.8, 0.8)
         self.viewer.lookat = (0.0, 0.0, 0.2)
 
-        self.decimation = 4 * 2
-        self.sim.dt = 1 / (60 * 2)
-        self.sim.render_interval = 4 * 2
+        self.sim.dt = 1 / 100
+        self.decimation = 5
+        self.sim.render_interval = 5
 
         self.rerender_on_reset = True
 
     def dynamic_setup(self, *args):
         self.scene.dynamic_setup(*args)
+
