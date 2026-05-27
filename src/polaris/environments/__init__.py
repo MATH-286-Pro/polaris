@@ -159,3 +159,25 @@ gym.register(
         ),
     },
 )
+
+
+gym.register(
+    id="UMI-FLAT",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_flat/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
+            ]
+        ),
+    },
+)
+
+
