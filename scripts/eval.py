@@ -7,6 +7,7 @@ import gymnasium as gym
 import torch
 import argparse
 import pandas as pd
+from datetime import datetime
 
 
 from pathlib import Path
@@ -50,7 +51,7 @@ def main(eval_args: EvalArgs):
     )
     rollouts = len(initial_conditions)
     # Resume CSV logging
-    run_folder = Path(eval_args.run_folder)
+    run_folder = Path(datetime.now().strftime(eval_args.run_folder))
     run_folder.mkdir(parents=True, exist_ok=True)
     csv_path = run_folder / "eval_results.csv"
     if csv_path.exists():
