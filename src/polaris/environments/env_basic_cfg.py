@@ -28,7 +28,7 @@ from isaaclab.assets import ArticulationCfg
 
 import dataclasses
 from dataclasses import MISSING
-from .robot_cfg import RobotFrameCfg
+from ..robot.robot_cfg import RobotFrameCfg
 
 ### SceneCfg ###
 @configclass

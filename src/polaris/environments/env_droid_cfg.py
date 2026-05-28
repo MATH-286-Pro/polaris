@@ -8,7 +8,7 @@ import isaaclab.envs.mdp as mdp
 import numpy as np
 from typing import Sequence
 
-from polaris.environments.robot_cfg import NVIDIA_DROID
+from polaris.robot.robot_cfg import NVIDIA_DROID
 
 from pxr import Usd, UsdGeom, UsdPhysics
 from isaaclab.utils import configclass, noise
@@ -28,7 +28,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import (
 from isaaclab.markers.config import FRAME_MARKER_CFG
 
 from .env_basic_cfg import SceneCfg, BasicEnvCfg
-from polaris.environments.robot_cfg import (
+from polaris.robot.robot_cfg import (
     DROID_FRAME_CFG,
     DROID_WRIST_CAMERA_PRIM_PATH,
     NVIDIA_DROID,
