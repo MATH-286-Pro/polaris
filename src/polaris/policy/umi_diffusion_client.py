@@ -304,10 +304,10 @@ class UmiGripperPosClient(InferenceClient):
             infer_ms = server_response["server_timing"]["infer_ms"]
 
             self.action_10d_chunk_isc_e = server_response["actions"]
-            viz = curr_obs["camera0_rgb"]
+            viz = curr_obs["gopro"]
 
         if return_viz and viz is None:
-            viz = curr_obs["camera0_rgb"]
+            viz = curr_obs["gopro"]
 
         # IsaacSim Action
         action_10d_isc_e = self.action_10d_chunk_isc_e[self.actions_from_chunk_completed]
