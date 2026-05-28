@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 
 
@@ -207,6 +207,168 @@ UMI_GRIPPER = ArticulationCfg(
         ),
         "finger_compliance": ImplicitActuatorCfg(
             joint_names_expr=UMI_GRIPPER_PASSIVE_FINGER_JOINTS,
+            effort_limit_sim=50.0,
+            velocity_limit_sim=0.5,
+            stiffness=500.0,
+            damping=20.0,
+        ),
+    },
+)
+
+
+EE_LINK_NAME = "eef_link"
+EE_REF_LINK_NAME = "base_link"
+
+UNITREE_A2_VX300S_ROOT_PRIM_PATH = "{ENV_REGEX_NS}/a2_vx300s"
+UNITREE_A2_VX300S_END_EFFECTOR_PRIM_PATH = f"{UNITREE_A2_VX300S_ROOT_PRIM_PATH}/{EE_LINK_NAME}"
+UNITREE_A2_VX300S_BASE_FRAME_PRIM_PATH = f"{UNITREE_A2_VX300S_ROOT_PRIM_PATH}/{EE_REF_LINK_NAME}"
+UNITREE_A2_VX300S_CAMERA_PRIM_PATH = f"{UNITREE_A2_VX300S_ROOT_PRIM_PATH}/gopro/FisheyeCamera"
+
+UNITREE_A2_VX300S_FRAME_CFG = RobotFrameCfg(
+    root_prim_path=UNITREE_A2_VX300S_ROOT_PRIM_PATH,
+    source_frame_prim_path=UNITREE_A2_VX300S_BASE_FRAME_PRIM_PATH,
+    end_effector_prim_path=UNITREE_A2_VX300S_END_EFFECTOR_PRIM_PATH,
+    end_effector_name=EE_LINK_NAME,
+)
+
+UNITREE_A2_VX300S_LEG_JOINT_NAMES = [
+    ".*_hip_joint",
+    ".*_thigh_joint",
+    ".*_calf_joint",
+]
+
+UNITREE_A2_VX300S_ARM_JOINT_NAMES = [
+    "waist",
+    "shoulder",
+    "elbow",
+    "forearm_roll",
+    "wrist_angle",
+    "wrist_rotate",
+]
+
+UNITREE_A2_VX300S_WBC_JOINT_NAMES = UNITREE_A2_VX300S_ARM_JOINT_NAMES + UNITREE_A2_VX300S_LEG_JOINT_NAMES
+
+UNITREE_A2_VX300S_FINGER_BODY_NAMES = [
+    "vx300s_left_finger_link", 
+    "vx300s_right_finger_link",
+]
+
+UNITREE_A2_VX300S_FINGER_JOINT_NAMES = [
+    "left_finger_joint",
+    "right_finger_joint",
+]
+
+UNITREE_A2_VX300S_PASSIVE_FINGER_JOINTS = [
+    "left_finger_passive_joint",
+    "right_finger_passive_joint",
+]
+
+#TODO 这个是因为训练 和 UMI 控制位置不一样导致的，后期统一训练需要删除
+UNITREE_A2_VX300S_OFFSET_EEF_TF_E = np.eye(4)
+UNITREE_A2_VX300S_OFFSET_EEF_TF_E[:3, 3] = np.array([0.0385 - 0.14, 0.0, 0.0])
+
+UNITREE_A2_VX300S_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path="robot_descriptions/a2-vx300s/a2-vx300s.usd",
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.45),  # IMPORTANT: This will decide the initial height of the robot
+        joint_pos={
+            ".*L_hip_joint": +0.1,
+            ".*R_hip_joint": -0.1,
+            "F[L,R]_thigh_joint": +0.8,
+            "R[L,R]_thigh_joint": +1.0,
+            ".*_calf_joint": -1.5,
+            "waist": 0.0,
+            "shoulder": -0.872,
+            "elbow": +0.872,
+            "forearm_roll": 0.0,
+            "wrist_angle": 0.0,
+            "wrist_rotate": 0.0,
+            "left_finger_joint": 0.0,
+            "right_finger_joint": 0.0,
+            "left_finger_passive_joint": 0.0,
+            "right_finger_passive_joint": 0.0,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.7,
+    actuators={
+        "base_legs": DelayedPDActuatorCfg(
+            joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
+            effort_limit={
+                ".*_hip_joint": 120.0,
+                ".*_thigh_joint": 120.0,
+                ".*_calf_joint": 180.0,
+            },
+            velocity_limit={
+                ".*_hip_joint": 22.0,
+                ".*_thigh_joint": 22.0,
+                ".*_calf_joint": 14.6667,
+            },
+            stiffness=50.0,
+            damping=1.5,
+            friction=0.0,
+            min_delay=1,
+            max_delay=3,
+        ),
+        "arm": ImplicitActuatorCfg(  # inspired from SO-101 here: https://github.com/MuammerBay/isaac_so_arm101/blob/main/src/isaac_so_arm101/robots/trs_so101/so_arm101.py
+            joint_names_expr=[
+                "waist",
+                "shoulder",
+                "elbow",
+                "forearm_roll",
+                "wrist_angle",
+                "wrist_rotate",
+            ],
+            effort_limit_sim={
+                "waist": 10.0,
+                "shoulder": 20.0,
+                "elbow": 15.0,
+                "forearm_roll": 2.0,
+                "wrist_angle": 5.0,
+                "wrist_rotate": 1.0,
+            },
+            velocity_limit_sim=3.14159,
+            stiffness={
+                "waist": 200.0,  # Highest - moves all mass
+                "shoulder": 170.0,  # Slightly less than rotation
+                "elbow": 120.0,  # Reduced based on less mass
+                "forearm_roll": 80.0,  # Reduced for less mass
+                "wrist_angle": 80.0,  # Reduced for less mass
+                "wrist_rotate": 50.0,  # Low mass to move
+            },
+            damping={
+                "waist": 80.0,
+                "shoulder": 65.0,
+                "elbow": 45.0,
+                "forearm_roll": 30.0,
+                "wrist_angle": 20.0,
+                "wrist_rotate": 20.0,
+            },
+        ),
+        "fingers": ImplicitActuatorCfg(
+            joint_names_expr=UNITREE_A2_VX300S_FINGER_JOINT_NAMES,
+            effort_limit_sim=40.0,
+            velocity_limit_sim=10.0,
+            stiffness=1500.0,
+            damping=100.0,
+        ),
+        "finger_compliance": ImplicitActuatorCfg(
+            joint_names_expr=UNITREE_A2_VX300S_PASSIVE_FINGER_JOINTS,
             effort_limit_sim=50.0,
             velocity_limit_sim=0.5,
             stiffness=500.0,
