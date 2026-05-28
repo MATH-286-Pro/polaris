@@ -4,7 +4,47 @@ from omni.usd import get_context
 import numpy as np
 import torch
 
+# ==================== Basic Function ======================
+def _scene_pos(env, obj_name):
+    obj_data = env.scene[obj_name].data
+    if hasattr(obj_data, "target_pos_w"):
+        return obj_data.target_pos_w[0]
+    return obj_data.root_pos_w[0]
 
+
+def _quat_rotate(quat, vec):
+    quat = quat / torch.norm(quat)
+    vec = torch.as_tensor(vec, dtype=quat.dtype, device=quat.device)
+    quat_xyz = quat[1:]
+    uv = torch.cross(quat_xyz, vec, dim=0)
+    uuv = torch.cross(quat_xyz, uv, dim=0)
+    return vec + 2.0 * (quat[0] * uv + uuv)
+
+
+def _is_gripper_open(env, threshold=None):
+    robot_data = env.scene["robot"].data
+    joint_names = robot_data.joint_names
+
+    if "finger_joint" in joint_names:
+        joint_idx = joint_names.index("finger_joint")
+        threshold = 0.1 if threshold is None else threshold
+        return robot_data.joint_pos[0][joint_idx] < threshold
+
+    finger_joint_names = ["left_finger_joint", "right_finger_joint"]
+    joint_indices = [
+        joint_names.index(joint_name)
+        for joint_name in finger_joint_names
+        if joint_name in joint_names
+    ]
+    if joint_indices:
+        threshold = 0.04 if threshold is None else threshold
+        gripper_width = torch.sum(robot_data.joint_pos[0][joint_indices])
+        return gripper_width > threshold
+
+    return True
+
+
+# ==================== Metrics Function ======================
 def reach(obj_name, threshold=0.05):
     """
     Returns a checker function that expects (env).
@@ -32,7 +72,34 @@ def lift(obj_name, threshold=0.05, default_height=None):
     return checker
 
 
-def is_within_xy(object1, object2, percent_threshold=0.5, open_finger_threshold=0.1):
+def up(obj_name):
+    """
+    Check whether the object's local up axis is aligned with the world z axis.
+    """
+
+    def checker(env):
+        object_gz = env.scene[obj_name].data.projected_gravity_b[..., 2]
+        return object_gz.item() < -0.8
+
+    return checker
+
+
+def away(obj_name, threshold=0.8):
+    """
+    Check whether reference_name is farther than threshold from obj_name.
+    Defaults to checking whether the end-effector is away from the object.
+    """
+
+    def checker(env):
+        obj_pos = _scene_pos(env, obj_name)
+        reference_pos = _scene_pos(env, "ee_frame")
+        dist = torch.norm(obj_pos - reference_pos)
+        return dist.item() > threshold
+
+    return checker
+
+
+def is_within_xy(object1, object2, percent_threshold=0.5, open_finger_threshold=None):
     """
     Check if object1 is inside object2.
     """
@@ -40,10 +107,7 @@ def is_within_xy(object1, object2, percent_threshold=0.5, open_finger_threshold=
     def checker(env):
         # ee should be open
         stage = get_context().get_stage()
-        finger_joint = env.scene["robot"].data.joint_pos[0][
-            env.scene["robot"].data.joint_names.index("finger_joint")
-        ]
-        if finger_joint >= open_finger_threshold:
+        if not _is_gripper_open(env, open_finger_threshold):
             return False
 
         obj1_prim = stage.GetPrimAtPath(f"/World/envs/env_0/scene/{object1}")

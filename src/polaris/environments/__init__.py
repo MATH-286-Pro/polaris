@@ -152,8 +152,9 @@ gym.register(
         "rubric": Rubric(
             criteria=[
                 checkers.reach("blue_mug", threshold=0.2),
-                (checkers.lift("blue_mug", threshold=0.06), [0]),
-                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [1]),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
             ]
         ),
     },
