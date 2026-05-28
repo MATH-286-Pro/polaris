@@ -230,6 +230,20 @@ class UmiDiffusionPolicy:
         self.obs_meta = self.shape_meta["obs"]
         self.max_horizon = max(int(v.get("horizon", 1)) for v in self.obs_meta.values())
 
+        # UMI Policy Check
+        assert cfg.task.pose_repr.obs_pose_repr == "relative", "Only Support relative representation"
+        assert cfg.task.pose_repr.action_pose_repr == "relative", "Only Support relative representation"
+
+        # Print Information
+        print("==================================")
+        print(f"Policy Running Frequency =", "\r\n")
+        print(f"Policy Obs Input Frequency = {60 / cfg.task.obs_down_sample_steps} Hz")
+        print(f" - Input Image Horizon = {cfg.task.img_obs_horizon}")
+        print(f" - Input Proprioception Horizon = {cfg.task.low_dim_obs_horizon}", "\r\n")
+        print(f"Policy Action Output Frequency = {60 / cfg.task.obs_down_sample_steps} Hz")
+        print(f" - Action Length {cfg.task.action_horizon}")  # note that policy actually only excute partial action length
+        print("==================================")
+
     @property
     def metadata(self) -> dict:
         return {
