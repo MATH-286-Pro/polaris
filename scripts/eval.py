@@ -114,16 +114,16 @@ def main(eval_args: EvalArgs):
 
             bar.close()
             print(f"Episode {episode} finished. Episode length: {bar.n}")
+            episode += 1
+            video = []
+            if episode >= rollouts:
+                break
+
             bar = tqdm.tqdm(range(horizon))
             obs, info = env.reset(
                 object_positions=initial_conditions[episode % len(initial_conditions)],
                 expensive=policy_client.rerender,
             )
-
-            episode += 1
-            video = []
-            if episode >= rollouts:
-                break
 
     env.close()
     simulation_app.close()
