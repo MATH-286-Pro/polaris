@@ -34,6 +34,7 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
 
         configure_rtx_scene_lighting()
         super().__init__(cfg=cfg, *args, **kwargs)
+        self._fisheye_circle_mask: dict[tuple[str, int, int], np.ndarray] = {}
         self._configure_reflection_rendering()
         self.setup_splat_world_and_robot_views()
         self.setup_splat_robot()
@@ -141,15 +142,117 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
                 mask = mask_and_rgb[cam]["mask"]
                 sim_img = mask_and_rgb[cam]["rgb"]
                 new_img = np.where(mask, sim_img, og_img)
+
+                mask_pixels = self._valid_camera_pixels(cam, sim_img)
+                new_img = np.where(mask_pixels, new_img, 0)
+
                 rgb[cam] = new_img
         else:
             rgb = {}
             for cam in self.scene.sensors:
                 if isinstance(self.scene.sensors[cam], Camera):
-                    rgb[cam] = (
+                    sim_img = (
                         self.scene[cam].data.output["rgb"][0].detach().cpu().numpy()
                     )
+
+                    mask_pixels = self._valid_camera_pixels(cam, sim_img)
+
+                    rgb[cam] = np.where(mask_pixels, sim_img, 0)
+
         return rgb
+
+    def _valid_camera_pixels(self, cam: str, image: np.ndarray) -> np.ndarray:
+        match self._is_fisheye_camera(cam):
+            case True:
+                return self._get_fisheye_circle_mask(cam, image)
+            case False:
+                return np.ones(image.shape[:2] + (1,), dtype=bool)
+
+    def _is_fisheye_camera(self, cam: str) -> bool:
+        sensor = self.scene.sensors[cam]
+        projection_type = getattr(
+            getattr(sensor.cfg, "spawn", None), "projection_type", ""
+        )
+        return str(projection_type).startswith("fisheye")
+
+    # Generate Fisheye mask
+    def _get_fisheye_circle_mask(self, cam: str, image: np.ndarray) -> np.ndarray:
+        height, width = image.shape[:2]
+        mask_key = (cam, height, width)
+
+        # 优化，防止重复计算 mask
+        if mask_key in self._fisheye_circle_mask:
+            return self._fisheye_circle_mask[mask_key]
+
+        sensor = self.scene.sensors[cam]
+        spawn_cfg = sensor.cfg.spawn
+        cx = getattr(spawn_cfg, "fisheye_optical_centre_x", width / 2)
+        cy = getattr(spawn_cfg, "fisheye_optical_centre_y", height / 2)
+        nominal_width = getattr(spawn_cfg, "fisheye_nominal_width", width)
+        nominal_height = getattr(spawn_cfg, "fisheye_nominal_height", height)
+        radius = self._get_fisheye_nominal_radius(spawn_cfg)
+
+        if nominal_width and nominal_height:
+            scale_x = width / nominal_width
+            scale_y = height / nominal_height
+            cx = cx * scale_x
+            cy = cy * scale_y
+
+        if nominal_width and nominal_height and radius is not None:
+            radius_x = radius * scale_x
+            radius_y = radius * scale_y
+        else:
+            radius_x = min(cx, width - cx, cy, height - cy) - 4.0
+            radius_y = radius_x
+
+        yy, xx = np.ogrid[:height, :width]
+        mask = ((xx - cx) / radius_x) ** 2 + ((yy - cy) / radius_y) ** 2 <= 1.0
+        mask = mask[..., None]
+        self._fisheye_circle_mask[mask_key] = mask
+        return mask
+
+    def _get_fisheye_nominal_radius(self, spawn_cfg) -> float | None:
+        max_fov = getattr(spawn_cfg, "fisheye_max_fov", None)
+        if max_fov is None:
+            return None
+
+        half_fov = np.deg2rad(max_fov) / 2.0
+        a = getattr(spawn_cfg, "fisheye_polynomial_a", 0.0)
+        b = getattr(spawn_cfg, "fisheye_polynomial_b", 0.0)
+        c = getattr(spawn_cfg, "fisheye_polynomial_c", 0.0)
+        d = getattr(spawn_cfg, "fisheye_polynomial_d", 0.0)
+        e = getattr(spawn_cfg, "fisheye_polynomial_e", 0.0)
+        f = getattr(spawn_cfg, "fisheye_polynomial_f", 0.0)
+
+        def theta(radius: float) -> float:
+            return (
+                a
+                + b * radius
+                + c * radius**2
+                + d * radius**3
+                + e * radius**4
+                + f * radius**5
+            )
+
+        lo = 0.0
+        hi = max(
+            getattr(spawn_cfg, "fisheye_nominal_width", 0.0),
+            getattr(spawn_cfg, "fisheye_nominal_height", 0.0),
+            1.0,
+        )
+        while theta(hi) < half_fov:
+            hi *= 2.0
+            if hi > 1e6:
+                return None
+
+        for _ in range(48):
+            mid = (lo + hi) / 2.0
+            if theta(mid) < half_fov:
+                lo = mid
+            else:
+                hi = mid
+
+        return hi
 
     def setup_splat_world_and_robot_views(self):
         splats = {}
