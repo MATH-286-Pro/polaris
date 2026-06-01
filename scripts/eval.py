@@ -78,7 +78,8 @@ def main(eval_args: EvalArgs):
     horizon = env.max_episode_length
     bar = tqdm.tqdm(range(horizon))
     obs, info = env.reset(
-        object_positions=initial_conditions[episode % len(initial_conditions)]
+        object_positions=initial_conditions[episode % len(initial_conditions)],
+        expensive=policy_client.rerender,
     )
     policy_client.reset()
     print(f" >>> Starting eval job from episode {episode + 1} of {rollouts} <<< ")
@@ -87,7 +88,8 @@ def main(eval_args: EvalArgs):
         if viz is not None:
             video.append(viz)
         obs, rew, term, trunc, info = env.step(
-            torch.tensor(action).reshape(1, -1), expensive=policy_client.rerender
+            torch.tensor(action).reshape(1, -1), 
+            expensive=policy_client.rerender
         )
 
         bar.update(1)
@@ -114,7 +116,8 @@ def main(eval_args: EvalArgs):
             print(f"Episode {episode} finished. Episode length: {bar.n}")
             bar = tqdm.tqdm(range(horizon))
             obs, info = env.reset(
-                object_positions=initial_conditions[episode % len(initial_conditions)]
+                object_positions=initial_conditions[episode % len(initial_conditions)],
+                expensive=policy_client.rerender,
             )
 
             episode += 1
