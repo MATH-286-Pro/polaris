@@ -111,8 +111,12 @@ UMI_GRIPPER_ROTATION_JOINTS = [
 UMI_GRIPPER_ARM_JOINTS = UMI_GRIPPER_TRANSLATION_JOINTS + UMI_GRIPPER_ROTATION_JOINTS
 
 UMI_GRIPPER_FINGER_JOINTS = [
-    "left_finger_joint", 
-    "right_finger_joint"
+    "left_finger_joint",
+    "right_finger_joint",
+]
+UMI_GRIPPER_PASSIVE_FINGER_JOINTS = [
+    "left_finger_passive_joint",
+    "right_finger_passive_joint",
 ]
 
 UMI_GRIPPER_FINGER_BODY_NAMES = [
@@ -173,6 +177,8 @@ UMI_GRIPPER = ArticulationCfg(
             "gripper_joint_rz": 0.0,
             "left_finger_joint": 0.0,
             "right_finger_joint": 0.0,
+            "left_finger_passive_joint": 0.0,
+            "right_finger_passive_joint": 0.0,
         },
         joint_vel={".*": 0.0},
     ),
@@ -196,8 +202,15 @@ UMI_GRIPPER = ArticulationCfg(
             joint_names_expr=UMI_GRIPPER_FINGER_JOINTS,
             effort_limit_sim=40.0,
             velocity_limit_sim=10.0,
-            stiffness=800.0,
-            damping=10.0,
+            stiffness=1500.0,
+            damping=100.0,
+        ),
+        "finger_compliance": ImplicitActuatorCfg(
+            joint_names_expr=UMI_GRIPPER_PASSIVE_FINGER_JOINTS,
+            effort_limit_sim=50.0,
+            velocity_limit_sim=0.5,
+            stiffness=500.0,
+            damping=20.0,
         ),
     },
 )

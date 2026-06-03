@@ -122,3 +122,32 @@ def set_material_friction(
 
     for prim_path in prim_paths:
         sim_utils.bind_physics_material(prim_path, material_path, stage=stage)
+
+
+def set_passive_finger_joint_limits(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int] | None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    lower: float = 0.0,
+    upper: float = 0.02,
+    joint_names: Sequence[str] | None = None,
+):
+    robot = env.scene[asset_cfg.name]
+    joint_ids, _ = robot.find_joints(
+        joint_names,
+        preserve_order=True,
+    )
+
+    num_envs = robot.num_instances if env_ids is None else len(env_ids)
+    limits = torch.tensor(
+        [lower, upper],
+        dtype=torch.float32,
+        device=robot.device,
+    ).reshape(1, 1, 2)
+    limits = limits.repeat(num_envs, len(joint_ids), 1)
+
+    robot.write_joint_position_limit_to_sim(
+        limits,
+        joint_ids=joint_ids,
+        env_ids=env_ids,
+    )

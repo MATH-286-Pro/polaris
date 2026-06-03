@@ -18,6 +18,7 @@ from polaris.robot.robot_cfg import (
     UMI_GRIPPER_FINGER_JOINTS,
     UMI_GRIPPER_ARM_JOINTS,
     UMI_GRIPPER_FINGER_BODY_NAMES,
+    UMI_GRIPPER_PASSIVE_FINGER_JOINTS,
 )
 
 from pxr import Usd, UsdGeom, UsdPhysics
@@ -47,7 +48,7 @@ from .mdp.observations import body_tf_b_priv, body_tf_w_priv, arm_joint_pos, gri
 from .mdp.actions import GripperWidthJointPositionActionCfg
 from .. import tool_linalg
 from .sensor.camera import GoPro_2_7K
-from .mdp.events import set_material_mirror, set_material_friction
+from .mdp.events import set_material_mirror, set_material_friction, set_passive_finger_joint_limits
 
 
 # ======================== Action ========================#
@@ -154,6 +155,16 @@ class EventCfg(BasicEventCfg):
         },
     )
 
+    set_passive_finger_joint_limits = EventTerm(
+        func=set_passive_finger_joint_limits,
+        mode="startup",
+        params={
+            "lower": 0.0,
+            "upper": 0.02,
+            "joint_names": UMI_GRIPPER_PASSIVE_FINGER_JOINTS,
+        },
+    )
+
     set_joint_x = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
@@ -237,6 +248,7 @@ class UMIEnvCfg(BasicEnvCfg):
 
     observations = ObservationCfg()
     actions = ActionCfg()
+    events = EventCfg()
 
 
     def __post_init__(self):
