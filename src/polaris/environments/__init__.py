@@ -4,6 +4,7 @@ from polaris.environments.manager_based_rl_splat_environment import (
 )
 from polaris.environments.env_droid_cfg import EnvCfg as DroidCfg
 from polaris.environments.env_umi_cfg import UMIEnvCfg
+from polaris.environments.env_umi_wbc_cfg import UMIWBCEnvCfg
 from isaaclab.envs import ManagerBasedRLEnv
 
 # Import rubric system
@@ -217,3 +218,80 @@ gym.register(
     },
 )
 
+
+gym.register(
+    id="UMI-PBL-WBC",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIWBCEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_pbl/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
+            ]
+        ),
+    },
+)
+
+gym.register(
+    id="UMI-PBL-TABLE-WBC",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIWBCEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_pbl_table/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
+            ]
+        ),
+    },
+)
+
+
+gym.register(
+    id="UMI-FLAT-WBC",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIWBCEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_flat/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
+            ]
+        ),
+    },
+)
+
+gym.register(
+    id="UMI-FLAT-TABLE-WBC",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIWBCEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_flat_table/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [0]),
+                (checkers.up("blue_mug"), [1]),
+                (checkers.away("blue_mug", threshold=0.2), [2]),
+            ]
+        ),
+    },
+)
