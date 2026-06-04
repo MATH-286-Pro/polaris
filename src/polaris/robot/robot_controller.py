@@ -97,3 +97,42 @@ class UMI_Gripper_Controller(Abstract_Controller):
         )
         
         return np.concatenate([command, gripper_width], axis=-1)
+    
+
+# ================== A2-VX300S Robot ====================== #
+class WBC_Controller(Abstract_Controller):
+    """Controller for A2-VX300S robot using a low-level WBC policy."""
+
+    def __init__(self, policy_path: str = None, device: str = "cuda"):
+        from polaris.robot.load_rsl_policy import RSLPolicy
+        self.policy = RSLPolicy(model_path=policy_path, device=device)
+        self.device = device
+
+    @staticmethod
+    def joint_to_tf_b(joints):
+        """
+        Convert joint positions to end-effector transform.
+        Note: For WBC, this usually requires forward kinematics of the specific arm.
+        """
+        # This is a placeholder for the FK logic if needed for the A2-VX300S arm
+        raise NotImplementedError("FK for A2-VX300S not implemented in this controller.")
+
+    def tf_b_to_joint(self, obs: torch.Tensor, gripper_width: torch.Tensor) -> np.array:
+        """
+        Input: WBC observation tensor
+        Output: Joint position actions from the neural WBC policy
+        """
+        action_wbc = self.policy(obs)
+
+        action_gripper_width = torch.as_tensor(
+            gripper_width,
+            dtype=action_wbc.dtype,
+            device=action_wbc.device,
+        ).reshape(-1, 1)
+
+        action_robot = torch.cat([
+            action_wbc, 
+            action_gripper_width
+            ], dim=-1)
+
+        return action_robot.cpu().numpy()
