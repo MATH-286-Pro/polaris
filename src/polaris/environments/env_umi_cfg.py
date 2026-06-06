@@ -261,9 +261,10 @@ class UMIEnvCfg(BasicEnvCfg):
 
         self.sim.dt = 1 / 100
         self.decimation = 5
-        self.sim.render_interval = 5
 
-        self.rerender_on_reset = True
+        # Controll Render Manually #00ff00
+        self.sim.render_interval = 10**9
+        self.rerender_on_reset = False
 
     def dynamic_setup(self, *args):
         self.scene.dynamic_setup(*args)

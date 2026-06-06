@@ -464,7 +464,7 @@ class UMIWBCEnvCfg(BasicEnvCfg):
 
         # self.sim.gravity = (0.0, 0.0, 0.0)  # DEBUG #00ff00
 
-        self.rerender_on_reset = True
+        self.rerender_on_reset = False
 
     def dynamic_setup(self, *args):
         self.scene.dynamic_setup(*args)

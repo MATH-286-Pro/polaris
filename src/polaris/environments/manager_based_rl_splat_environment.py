@@ -70,7 +70,14 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             }
         }
 
-    def reset(self, object_positions: dict | None = None, expensive=True, *args, **kwargs):
+    def reset(
+        self, 
+        object_positions: dict | None = None, 
+        expensive=True, 
+        render_image: bool = True,
+        *args, 
+        **kwargs
+    ):
         """
         Reset the environment
 
@@ -80,6 +87,8 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             A dictionary mapping object names to their desired poses (position and orientation).
         expensive : bool
             Whether to perform expensive (splat) rendering operations.
+        render_image : bool
+            Whether to render camera images for the returned observation.
         """
         obs, info = super().reset(*args, **kwargs)
 
@@ -95,19 +104,25 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             root_velocity = torch.zeros((pose.shape[0], 6), dtype=pose.dtype, device=pose.device)
             self.scene[obj].write_root_pose_to_sim(pose)
             self.scene[obj].write_root_velocity_to_sim(root_velocity)
-        self.sim.render()
+
+        if render_image:
+            self.sim.render()
         self.scene.update(0)
         obs = (
             self.observation_manager.compute()
         )  # update observation after setting ICs if needed
-        obs["splat"] = self.custom_render(expensive, transform_static=True)
+        obs["splat"] = self.custom_render(
+            expensive,
+            transform_static=True,
+            render_image=render_image,
+        )
 
         # Evaluate rubric and add to info
         info.update(self._evaluate_rubric())
 
         return obs, info
 
-    def step(self, action, expensive=True):
+    def step(self, action, expensive=True, render_image: bool = True):
         """
         Steps the environment
 
@@ -117,9 +132,15 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             The action to take in the environment.
         expensive : bool
             Whether to perform expensive (splat) rendering operations.
+        render_image : bool
+            Whether to render camera images for the returned observation.
         """
         obs, rew, done, trunc, info = super().step(action)
-        obs["splat"] = self.custom_render(expensive)
+        if render_image:
+            self.sim.render()
+            self.scene.update(0)
+
+        obs["splat"] = self.custom_render(expensive, render_image=render_image)
         # obs["splat"] = {cam: self.get_robot_from_sim()[cam]["rgb"] for cam in self.get_robot_from_sim()}
 
         # Evaluate rubric and add to info
@@ -127,10 +148,19 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
 
         return obs, rew, done, trunc, info
 
-    def custom_render(self, expensive: bool, transform_static: bool = False):
+
+    def custom_render(
+        self,
+        expensive: bool,
+        transform_static: bool = False,
+        render_image: bool = True,
+    ):
         """
         Render the environment
         """
+        if not render_image:
+            return {}
+
         if expensive:
             self.transform_sim_to_splat(transform_static=transform_static)
             rgb = self.render_splat()

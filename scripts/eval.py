@@ -79,6 +79,7 @@ def main(eval_args: EvalArgs):
         eval_args.policy,
         env_cfg=env.cfg,
     )
+    policy_client.reset()
 
     video = []
     horizon = env.max_episode_length
@@ -86,13 +87,12 @@ def main(eval_args: EvalArgs):
     obs, info = env.reset(
         object_positions=initial_conditions[episode % len(initial_conditions)],
         expensive=policy_client.rerender,
+        render_image=policy_client.render_image,
     )
 
     # Add TimeStamp
     obs["timestamp"] = env.episode_length_buf * env.step_dt
 
-
-    policy_client.reset()
     print(f" >>> Starting eval job from episode {episode + 1} of {rollouts} <<< ")
     while True:
         action, viz = policy_client.infer(obs, language_instruction)
@@ -100,7 +100,8 @@ def main(eval_args: EvalArgs):
             video.append(viz)
         obs, rew, term, trunc, info = env.step(
             torch.tensor(action).reshape(1, -1), 
-            expensive=policy_client.rerender
+            expensive=policy_client.rerender,
+            render_image=policy_client.render_image,
         )
 
         # Add TimeStamp
@@ -137,6 +138,7 @@ def main(eval_args: EvalArgs):
             obs, info = env.reset(
                 object_positions=initial_conditions[episode % len(initial_conditions)],
                 expensive=policy_client.rerender,
+                render_image=policy_client.render_image,
             )
             obs["timestamp"] = env.episode_length_buf * env.step_dt
 

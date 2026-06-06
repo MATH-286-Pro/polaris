@@ -96,10 +96,11 @@ class UMIObservationHistory:
 
     def add(self, observation: dict[str, np.ndarray]) -> None:
         observation_b = {
-            "camera0_rgb":          observation["camera0_rgb"],
             "robot0_eef_tf_b":      observation["robot0_eef_tf_b"],
             "robot0_gripper_width": observation["robot0_gripper_width"],
         }
+        if "camera0_rgb" in observation:
+            observation_b["camera0_rgb"] = observation["camera0_rgb"]
         if self.episode_start_eef_tf_b is None:
             self.episode_start_eef_tf_b = observation_b["robot0_eef_tf_b"]
         self._history_b.append(observation_b)
@@ -469,11 +470,20 @@ class UmiGripperPosClient(InferenceClient):
         #     self.actions_from_chunk_completed % self.open_loop_horizon == 0
         # )
 
+    @property
+    def render_image(self) -> bool:
+        return self._needs_policy_inference
+
+    @property
+    def _needs_policy_inference(self) -> bool:
+        return self.actions_from_chunk_completed % self.action_open_loop_horizon == 0
+
+
     def visualize(self, request: dict):
         """
         Return the camera views how the model sees it
         """
-        curr_obs = self._extract_observation(request)
+        curr_obs = self._extract_observation(request, require_image=True)
         return curr_obs["camera0_rgb"]
 
     def reset(self):
@@ -492,7 +502,12 @@ class UmiGripperPosClient(InferenceClient):
         Infer the next action from the policy in a server-client setup
         """
         viz = None
-        curr_obs_umi = self._extract_observation(obs)
+        needs_policy_inference = self._needs_policy_inference
+        require_image = (
+            needs_policy_inference
+            or return_viz
+        )
+        curr_obs_umi = self._extract_observation(obs, require_image=require_image)
 
         current_eef_tf_isc_b  = curr_obs_umi["eef_tf_isc_b"]
         current_eef_tf_isc_w  = curr_obs_umi["eef_tf_isc_w"]
@@ -503,7 +518,7 @@ class UmiGripperPosClient(InferenceClient):
         if self.STEP % self.high_level_step_interval == 0:
             self.umi_obs_history.add(curr_obs_umi)
 
-            if (self.actions_from_chunk_completed % self.action_open_loop_horizon == 0):
+            if self._needs_policy_inference:
                 self.actions_from_chunk_completed = 0
 
                 # 观测
@@ -616,10 +631,14 @@ class UmiGripperPosClient(InferenceClient):
 
         return wbc_obs
 
-    def _extract_observation(self, obs_dict) -> dict:
+    def _extract_observation(self, obs_dict, require_image: bool = True) -> dict:
+
+        observation = self._extract_robot_state(obs_dict)
+        if not require_image:
+            return observation
 
         # 处理 Image
-        camera_rgb     = obs_dict["splat"].get("wrist_cam")
+        camera_rgb = obs_dict.get("splat", {}).get("wrist_cam")
         input_height, input_width = camera_rgb.shape[:2]
 
         transform = get_image_transform(
@@ -628,6 +647,12 @@ class UmiGripperPosClient(InferenceClient):
             bgr_to_rgb=False,
         )
         camera_rgb_umi = transform(camera_rgb)
+
+        observation["camera0_rgb"] = camera_rgb_umi
+        observation["gopro"] = camera_rgb
+        return observation
+
+    def _extract_robot_state(self, obs_dict) -> dict:
 
         # 详见 env_umi_cfg.py
         robot_state   = obs_dict["policy"]
@@ -640,7 +665,6 @@ class UmiGripperPosClient(InferenceClient):
         base_tf_isc_w_priv = robot_state["base_tf_w_priv"].clone().detach().cpu().numpy()[0]
     
         return {
-            "camera0_rgb":                     camera_rgb_umi,                                  #0000ff
             "robot0_gripper_width":            gripper_joint.astype(np.float32),                #0000ff #00ff00
             "robot0_eef_tf_b":                 eef_tf_isc_b_priv,                               #00ff00
 
@@ -649,7 +673,7 @@ class UmiGripperPosClient(InferenceClient):
             "base_tf_isc_w":                   base_tf_isc_w_priv,
 
             "arm_joint":                       arm_joint,
-            "gopro":                           camera_rgb,
+            "sim_device":                      robot_state["arm_joint_pos"].device,
         }
 
     def visual_debug(self, img, cam_cfg, traj_tf_isc_w, current_eef_tf_isc_w):
