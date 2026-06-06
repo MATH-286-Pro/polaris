@@ -43,6 +43,17 @@ class InferenceClient(ABC):
         """
         return True
 
+    @property
+    def render_image(self) -> bool:
+        """
+        Whether the next observation needs camera images at all.
+
+        Defaults to True to preserve existing behavior for image-based policies.
+        Chunked policies can return False while replaying an already-predicted
+        action chunk.
+        """
+        return True
+
     @abstractmethod
     def infer(
         self, obs, instruction, return_viz: bool = False
