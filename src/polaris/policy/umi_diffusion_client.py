@@ -305,6 +305,7 @@ class UmiGripperPosClient(InferenceClient):
         current_eef_tf_isc_b  = curr_obs_umi["eef_tf_isc_b"]
         current_eef_tf_isc_w  = curr_obs_umi["eef_tf_isc_w"]
         current_base_tf_isc_w = curr_obs_umi["base_tf_isc_w"]
+        current_timestamp = float(obs["timestamp"])
 
         # ========================================== High Level Policy ========================================== #
         if self.STEP % self.high_level_step_interval == 0:
