@@ -87,6 +87,11 @@ def main(eval_args: EvalArgs):
         object_positions=initial_conditions[episode % len(initial_conditions)],
         expensive=policy_client.rerender,
     )
+
+    # Add TimeStamp
+    obs["timestamp"] = env.episode_length_buf * env.step_dt
+
+
     policy_client.reset()
     print(f" >>> Starting eval job from episode {episode + 1} of {rollouts} <<< ")
     while True:
@@ -97,6 +102,9 @@ def main(eval_args: EvalArgs):
             torch.tensor(action).reshape(1, -1), 
             expensive=policy_client.rerender
         )
+
+        # Add TimeStamp
+        obs["timestamp"] = env.episode_length_buf * env.step_dt
 
         bar.update(1)
         if term[0] or trunc[0] or bar.n >= horizon:
@@ -130,6 +138,7 @@ def main(eval_args: EvalArgs):
                 object_positions=initial_conditions[episode % len(initial_conditions)],
                 expensive=policy_client.rerender,
             )
+            obs["timestamp"] = env.episode_length_buf * env.step_dt
 
     env.close()
     simulation_app.close()
