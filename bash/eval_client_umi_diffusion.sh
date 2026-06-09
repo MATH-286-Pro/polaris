@@ -19,9 +19,10 @@ timestamp=$(date +"%Y%m%d_%H%M%S")
 # taskname=$"UMI-FLAT-TABLE"
 taskname=$"UMI-PBL-TABLE"
 
-uv run scripts/eval.py \
+HEADLESS=0 LIVESTREAM=0 uv run scripts/eval.py \
   --environment ${taskname} \
   --policy.client UmiGripperPos \
   --policy.port 8000 \
   --policy.open_loop_horizon 8 \
-  --run-folder "runs/${taskname}/${timestamp}"
+  --run-folder "runs/${taskname}/${timestamp}" \
+  # --no-headless
