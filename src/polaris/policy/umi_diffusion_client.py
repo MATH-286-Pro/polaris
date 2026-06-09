@@ -9,7 +9,7 @@ from polaris.policy.abstract_client import InferenceClient, PolicyArgs
 
 from .. import tool_linalg
 from ..robot.robot_controller import UMI_Gripper_Controller
-from ..environments.sensor.camera import GoPro_2_7K
+from ..environments.sensor.camera import GoPro_2_7K, FISHEYE_CAMERA_API
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 ROBOT_UMI_DIR = REPO_DIR / "robot_umi_module"
@@ -307,6 +307,15 @@ class UmiGripperPosClient(InferenceClient):
             self.action_10d_chunk_isc_e = server_response["actions"]
             viz = curr_obs["gopro"]
 
+            action_chunck_tf_isc_e, _ = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
+            action_chunck_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ action_chunck_tf_isc_e
+            viz = self.visual_debug(
+                viz,
+                GoPro_2_7K,
+                action_chunck_tf_isc_w,
+                current_eef_tf_isc_w,
+            )
+
         if return_viz and viz is None:
             viz = curr_obs["gopro"]
 
@@ -372,16 +381,28 @@ class UmiGripperPosClient(InferenceClient):
 
     def visual_debug(self, img, cam_cfg, traj_tf_isc_w, current_eef_tf_isc_w):
 
+        chw_image = img.shape[0] in (1, 3, 4) and img.shape[-1] not in (1, 3, 4)
+        img_hwc = np.moveaxis(img, 0, -1) if chw_image else img
+        img_debug = np.ascontiguousarray(img_hwc.copy())
+
+        k = cam_cfg.K # 注意这里默认 图片长宽与 cfg 一致
+
         current_world_tf_isc_e = np.linalg.inv(current_eef_tf_isc_w)
         traj_tf_isc_e_realtime = current_world_tf_isc_e[None, None, :, :] @ traj_tf_isc_w
 
-        #TODO 转化 isc 到 camera convention
-        traj_tf_cam_e_realtime = ...
+        # 暂时命名
+        eef_tf_isc_c = np.eye(4)
+        eef_tf_isc_c[..., :3, 3] = np.array([+0.1922, 0, -0.09])
+        traj_tf_isc_c_realtime = eef_tf_isc_c[None, None, :, :] @ traj_tf_isc_e_realtime
 
-        #TODO 使用相机内参矩阵把 traj_tf_isc_e_realtime 转为 camera XY 二维坐标
-        traj_xy_cam_realtime = ...
+        # 转化 isc 到 camera convention
+        traj_tf_cam_c_realtime = FISHEYE_CAMERA_API.TF_ISC_TO_CAM(traj_tf_isc_c_realtime)
 
-        #TODO 叠加 traj_xy_cam_realtime 点到 Image 上
-        img_debug = ...
+        # 使用相机内参矩阵把 traj_tf_cam_e_realtime 转为 camera XY 二维坐标
+        traj_xyz_cam_realtime = traj_tf_cam_c_realtime[..., :3, 3]
+        traj_xy_cam_realtime, valid = FISHEYE_CAMERA_API.PROJECT_CAM_LINEAR_XY(traj_xyz_cam_realtime)
 
-        return img_debug
+        # 叠加 traj_xy_cam_realtime 点到 Image 上
+        FISHEYE_CAMERA_API.DRAW_PROJECTED_POINTS(img_debug, traj_xy_cam_realtime, valid)
+
+        return np.moveaxis(img_debug, -1, 0) if chw_image else img_debug
