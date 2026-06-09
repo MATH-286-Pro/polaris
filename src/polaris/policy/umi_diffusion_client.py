@@ -9,6 +9,7 @@ from polaris.policy.abstract_client import InferenceClient, PolicyArgs
 
 from .. import tool_linalg
 from ..robot.robot_controller import UMI_Gripper_Controller
+from ..environments.sensor.camera import GoPro_2_7K
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 ROBOT_UMI_DIR = REPO_DIR / "robot_umi_module"
@@ -368,3 +369,19 @@ class UmiGripperPosClient(InferenceClient):
             "arm_joint":                       arm_joint,
             "gopro":                           camera_rgb,
         }
+
+    def visual_debug(self, img, cam_cfg, traj_tf_isc_w, current_eef_tf_isc_w):
+
+        current_world_tf_isc_e = np.linalg.inv(current_eef_tf_isc_w)
+        traj_tf_isc_e_realtime = current_world_tf_isc_e[None, None, :, :] @ traj_tf_isc_w
+
+        #TODO 转化 isc 到 camera convention
+        traj_tf_cam_e_realtime = ...
+
+        #TODO 使用相机内参矩阵把 traj_tf_isc_e_realtime 转为 camera XY 二维坐标
+        traj_xy_cam_realtime = ...
+
+        #TODO 叠加 traj_xy_cam_realtime 点到 Image 上
+        img_debug = ...
+
+        return img_debug
