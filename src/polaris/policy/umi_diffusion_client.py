@@ -400,7 +400,7 @@ class UmiGripperPosClient(InferenceClient):
 
         # 使用相机内参矩阵把 traj_tf_cam_e_realtime 转为 camera XY 二维坐标
         traj_xyz_cam_realtime = traj_tf_cam_c_realtime[..., :3, 3]
-        traj_xy_cam_realtime, valid = FISHEYE_CAMERA_API.PROJECT_CAM_LINEAR_XY(traj_xyz_cam_realtime)
+        traj_xy_cam_realtime, valid = FISHEYE_CAMERA_API.PROJECT_CAM_FISHEYE_XY(traj_xyz_cam_realtime)
 
         # 叠加 traj_xy_cam_realtime 点到 Image 上
         FISHEYE_CAMERA_API.DRAW_PROJECTED_POINTS(img_debug, traj_xy_cam_realtime, valid)
