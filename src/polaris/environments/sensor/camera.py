@@ -52,7 +52,7 @@ class FISHEYE_CAMERA_API:
     K = GoPro_2_7K.K
 
     # 鱼眼畸变
-    POLYNOMIAL = np.array([0, 1/GoPro_2_7K.fx, 0, 0, 0, 0]) #00ff00
+    POLYNOMIAL = GoPro_2_7K.D
     MAX_THETA  = GoPro_2_7K.fov / 2
 
 
@@ -61,6 +61,33 @@ class FISHEYE_CAMERA_API:
         """Convert a relative IsaacSim transform into UMI/camera convention."""
         return (cls.TF_SHIFT.T @ tf_isc_relative @ cls.TF_SHIFT_INV_T).astype(np.float32)
 
+    @classmethod
+    def _invert_isaaclab_fisheye_polynomial(
+        cls,
+        theta: np.ndarray,
+        fallback_focal: float,
+    ) -> np.ndarray:
+        
+        a, b, c, d, e, f = cls.POLYNOMIAL
+
+        if abs(float(b)) > 1e-8:
+            radius = (theta - a) / b
+        else:
+            radius = fallback_focal * theta
+        radius = np.maximum(radius, 0.0).astype(np.float32)
+
+        for _ in range(8):
+            radius2 = radius * radius
+            radius3 = radius2 * radius
+            radius4 = radius2 * radius2
+            radius5 = radius4 * radius
+            polynomial = a + b * radius + c * radius2 + d * radius3 + e * radius4 + f * radius5
+            derivative = b + 2.0 * c * radius + 3.0 * d * radius2 + 4.0 * e * radius3 + 5.0 * f * radius4
+            step = np.zeros_like(radius, dtype=np.float32)
+            np.divide(polynomial - theta, derivative, out=step, where=np.abs(derivative) > 1e-8)
+            radius = np.maximum(radius - step, 0.0)
+
+        return radius.astype(np.float32)   
 
 
     @classmethod
@@ -75,6 +102,41 @@ class FISHEYE_CAMERA_API:
         safe_z = np.where(valid, z, 1.0)
         xy[..., 0] = cls.K[0, 0] * points_cam[..., 0] / safe_z + cls.K[0, 2]
         xy[..., 1] = cls.K[1, 1] * points_cam[..., 1] / safe_z + cls.K[1, 2]
+
+        xy[~valid] = np.nan
+        valid &= np.isfinite(xy).all(axis=-1)
+
+        return xy, valid
+
+
+    @classmethod
+    def PROJECT_CAM_FISHEYE_XY(cls, points_cam: np.ndarray) -> np.ndarray:
+    
+        z = points_cam[..., 2]
+
+        # 只是用 z > 0 的点，因为有些点更新后会在镜头后面
+        valid = np.isfinite(points_cam).all(axis=-1) & (z > 1e-6)
+
+        xy = np.full(points_cam.shape[:-1] + (2,), np.nan, dtype=np.float32)
+        safe_z = np.where(valid, z, 1.0)
+        x = points_cam[..., 0] / safe_z
+        y = points_cam[..., 1] / safe_z
+
+        r_normalized = np.sqrt(x * x + y * y)
+        theta = np.arctan(r_normalized)
+        valid &= theta <= float(cls.MAX_THETA)
+
+
+        radius = cls._invert_isaaclab_fisheye_polynomial(
+            theta,
+            fallback_focal=float(cls.K[0, 0]),
+        )
+
+        direction_scale = np.zeros_like(r_normalized, dtype=np.float32)
+        np.divide(radius, r_normalized, out=direction_scale, where=r_normalized > 1e-8)
+
+        xy[..., 0] = cls.K[0, 2] + x * direction_scale
+        xy[..., 1] = cls.K[1, 2] + y * direction_scale
 
         xy[~valid] = np.nan
         valid &= np.isfinite(xy).all(axis=-1)
@@ -138,5 +200,3 @@ class FISHEYE_CAMERA_API:
                 radius = 5 if idx in (0, len(points_i) - 1) else 3
                 cv2.circle(img_debug, (x, y), radius + 1, cv_color(outline_color), -1, lineType=cv2.LINE_AA)
                 cv2.circle(img_debug, (x, y), radius, cv_color(color), -1, lineType=cv2.LINE_AA)
-
-
