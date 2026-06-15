@@ -226,21 +226,116 @@ class UMIObservationHistory:
 class RealtimeTraj:
 
     def __init__(self):
-        #TODO 创建 buffer 数据存储 数据时间与数据点
+        self.time = np.empty((0,), dtype=np.float64)
+        self.traj_tf_w = np.empty((0, 4, 4), dtype=np.float32)
+        self.traj_grip_width = np.empty((0,), dtype=np.float32)
 
     @staticmethod
-    def build_data(start_time, traj_tf_w, traj_grip_width, freq):
-        #TODO 默认 start_time 为第一个数据点, 后面数据点时间为 start_time 累加 1/freq， 返回 time 与 tf 对应的数据
+    def build_data(start_time: float, traj_tf_w, traj_grip_width, freq: float):
+
+        # Check is 4 by 4 transform matrix
+        if traj_tf_w.shape[-2:] != (4, 4):
+            raise ValueError(f"traj_tf_w must have shape (..., 4, 4), got {traj_tf_w.shape}")
+        
+        # 机器人数据
+        traj_tf_w = traj_tf_w.reshape(-1, 4, 4)
+        traj_grip_width = np.asarray(traj_grip_width, dtype=np.float32).reshape(-1)
+
+        # Build Time Sequence
+        dt = 1 / freq
+        time = start_time + np.arange(len(traj_tf_w), dtype=np.float64) * dt
+
+        return {
+            "time_seq": time,
+            "traj_tf_w": traj_tf_w,
+            "traj_grip_width": traj_grip_width,
+        }
 
     def update(self, data):
-        #TODO 更新自己的 time traj 数据，新加入 data 的 start_time 会覆盖原来 buffer 中的数据，保证后续的轨迹是最新的
+        time_seq        = np.asarray(data["time_seq"], dtype=np.float64).reshape(-1)
+        traj_tf_w       = np.asarray(data["traj_tf_w"], dtype=np.float32).reshape(-1, 4, 4)
+        traj_grip_width = np.asarray(data["traj_grip_width"], dtype=np.float32).reshape(-1)
+
+        if len(time_seq) == 0:
+            return
+
+        keep_end = np.searchsorted(self.time, time_seq[0], side="left")
+        if keep_end > 0:
+            self.time = np.concatenate([self.time[:keep_end], time_seq], axis=0)
+            self.traj_tf_w = np.concatenate([self.traj_tf_w[:keep_end], traj_tf_w], axis=0)
+            self.traj_grip_width = np.concatenate(
+                [self.traj_grip_width[:keep_end], traj_grip_width],
+                axis=0,
+            )
+        else:
+            self.time = time_seq
+            self.traj_tf_w = traj_tf_w
+            self.traj_grip_width = traj_grip_width
     
+
+    # 对于大于或小于当前数据 time 的 times 将取第一个或最后一个数据。
     def get_wbc_traj_w(self, times):
-        #TODO times 是一系列时间， 根据 times 返回一系列 tf
-        #对于大于或小于当前数据 time 的 times 将取第一个或最后一个数据
+
+        times = np.asarray(times, dtype=np.float64)
+        output_shape = times.shape
+        query_time = np.clip(times.reshape(-1), self.time[0], self.time[-1])
+
+        # 差值计算 tf
+        pos = np.stack(
+            [
+                np.interp(query_time, self.time, self.traj_tf_w[:, axis, 3])
+                for axis in range(3)
+            ],
+            axis=-1,
+        )
+        rot = self._interp_rotations(query_time, self.time, self.traj_tf_w[:, :3, :3])
+        tf = tool_linalg.pos_rot_to_tf(pos, rot).astype(np.float32)
+        return tf.reshape(output_shape + (4, 4))
     
     def get_wbc_grip(self, current_time):
-        # TODO 返回当前时间的夹抓宽度
+
+        grip = np.interp(
+            np.asarray(current_time, dtype=np.float64),
+            self.time,
+            self.traj_grip_width,
+        )
+        if isinstance(grip, np.ndarray):
+            return grip.astype(np.float32)
+        return np.float32(grip)
+
+    def clear(self):
+        self.time = np.empty((0,), dtype=np.float64)
+        self.traj_tf_w = np.empty((0, 4, 4), dtype=np.float32)
+        self.traj_grip_width = np.empty((0,), dtype=np.float32)
+
+
+    @staticmethod
+    def _interp_rotations(target_time, time, rot):
+        if len(time) == 1:
+            return np.broadcast_to(rot[0], target_time.shape + (3, 3)).copy()
+
+        right = np.searchsorted(time, target_time, side="right")
+        right = np.clip(right, 1, len(time) - 1)
+        left = right - 1
+
+        denom = np.maximum(time[right] - time[left], 1e-12)
+        alpha = ((target_time - time[left]) / denom)[..., None]
+
+        q0 = tool_linalg._rot_to_quat(rot[left])
+        q1 = tool_linalg._rot_to_quat(rot[right])
+        same_hemisphere = np.sum(q0 * q1, axis=-1, keepdims=True) >= 0.0
+        q1 = np.where(same_hemisphere, q1, -q1)
+
+        dot = np.clip(np.sum(q0 * q1, axis=-1, keepdims=True), -1.0, 1.0)
+        theta = np.arccos(dot)
+        sin_theta = np.sin(theta)
+
+        linear = sin_theta < 1e-6
+        s0 = np.sin((1.0 - alpha) * theta) / np.maximum(sin_theta, 1e-12)
+        s1 = np.sin(alpha * theta) / np.maximum(sin_theta, 1e-12)
+        quat = np.where(linear, (1.0 - alpha) * q0 + alpha * q1, s0 * q0 + s1 * q1)
+        quat = quat / np.maximum(np.linalg.norm(quat, axis=-1, keepdims=True), 1e-8)
+        return tool_linalg._quat_to_rot(quat)
 
 
 @InferenceClient.register(client_name="UmiGripperPos")
