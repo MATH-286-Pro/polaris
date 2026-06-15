@@ -252,6 +252,24 @@ class UmiGripperPosClient(InferenceClient):
         # Create Controller (Low Level Policy)
         self.low_level_controller = UMI_Gripper_Controller()
 
+        # 维护内部 step buffer 用于异步控制
+        self.STEP = 0
+        # infer() is called once per environment policy step. env_umi_cfg sets
+        # decimation=5 and sim.dt=1/100, so this client runs at 20Hz, not sim Hz.
+        self.ENV_FREQ = 20 #Hz   #TODO 需要变成自动的
+        self.HIGH_LEVEL_TRAJ_FREQ = 20 #Hz
+        self.LOW_LEVEL_FREQ  = 20 #Hz
+
+        self.high_level_step_interval = int(self.ENV_FREQ / self.HIGH_LEVEL_TRAJ_FREQ)
+        self.low_level_step_interval  = int(self.ENV_FREQ / self.LOW_LEVEL_FREQ)
+
+        assert self.ENV_FREQ % self.HIGH_LEVEL_TRAJ_FREQ == 0
+        assert self.ENV_FREQ % self.LOW_LEVEL_FREQ == 0
+
+        print("Env Frequency = ", self.ENV_FREQ)
+        print("High Level Frequency = ", self.HIGH_LEVEL_TRAJ_FREQ)
+        print("Low Level Frequency = ", self.LOW_LEVEL_FREQ)
+
     @property
     def rerender(self) -> bool:
         return False
@@ -270,6 +288,7 @@ class UmiGripperPosClient(InferenceClient):
         self.actions_from_chunk_completed = 0
         self.action_10d_chunk_isc_e = None
         self._needs_server_reset = True
+        self.STEP = 0
         self.umi_obs_history.clear()
 
     def infer(
@@ -279,67 +298,74 @@ class UmiGripperPosClient(InferenceClient):
         Infer the next action from the policy in a server-client setup
         """
         viz = None
-        curr_obs = self._extract_observation(obs)
-        self.umi_obs_history.add(curr_obs)
+        curr_obs_umi = self._extract_observation(obs)
+        self.umi_obs_history.add(curr_obs_umi)
 
-        current_eef_tf_isc_b  = curr_obs["eef_tf_isc_b"]
-        current_eef_tf_isc_w  = curr_obs["eef_tf_isc_w"]
-        current_base_tf_isc_w = curr_obs["base_tf_isc_w"]
+        current_eef_tf_isc_b  = curr_obs_umi["eef_tf_isc_b"]
+        current_eef_tf_isc_w  = curr_obs_umi["eef_tf_isc_w"]
+        current_base_tf_isc_w = curr_obs_umi["base_tf_isc_w"]
 
         # ========================================== High Level Policy ========================================== #
-        if (self.actions_from_chunk_completed % self.action_open_loop_horizon == 0):
-            self.actions_from_chunk_completed = 0
+        if self.STEP % self.high_level_step_interval == 0:
 
-            # 观测
-            obs_isc_e = self.umi_obs_history.obs
+            if (self.actions_from_chunk_completed % self.action_open_loop_horizon == 0):
+                self.actions_from_chunk_completed = 0
 
-            request_obs = {
-                "obs":           obs_isc_e,
-                "reset_episode": self._needs_server_reset,
-                # "prompt":       instruction,  # for VLA, umi doesn't need this
-            }
-            self._needs_server_reset = False
+                # 观测
+                obs_isc_e = self.umi_obs_history.obs
 
-            # 推理
-            server_response = self.client_policy.infer(request_obs)
-            infer_ms = server_response["server_timing"]["infer_ms"]
+                request_obs = {
+                    "obs":           obs_isc_e,
+                    "reset_episode": self._needs_server_reset,
+                    # "prompt":       instruction,  # for VLA, umi doesn't need this
+                }
+                self._needs_server_reset = False
 
-            self.action_10d_chunk_isc_e = server_response["actions"]
-            viz = curr_obs["gopro"]
+                # 推理
+                server_response = self.client_policy.infer(request_obs)
+                infer_ms = server_response["server_timing"]["infer_ms"]
 
-            action_chunck_tf_isc_e, _ = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
-            action_chunck_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ action_chunck_tf_isc_e
-            viz = self.visual_debug(
-                viz,
-                GoPro_2_7K,
-                action_chunck_tf_isc_w,
-                current_eef_tf_isc_w,
-            )
+                self.action_10d_chunk_isc_e = server_response["actions"]
+                viz = curr_obs_umi["gopro"]
 
-        if return_viz and viz is None:
-            viz = curr_obs["gopro"]
+                action_chunck_tf_isc_e, _ = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
+                action_chunck_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ action_chunck_tf_isc_e
+                viz = self.visual_debug(
+                    viz,
+                    GoPro_2_7K,
+                    action_chunck_tf_isc_w,
+                    current_eef_tf_isc_w,
+                )
 
-        # IsaacSim Action
-        action_10d_isc_e = self.action_10d_chunk_isc_e[self.actions_from_chunk_completed]
-        self.actions_from_chunk_completed += 1
+            if return_viz and viz is None:
+                viz = curr_obs_umi["gopro"]
 
-        # Tf Action (gripper frame)
-        action_tf_isc_e, gripper_width = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(action_10d_isc_e)
-        
-        # 高低层数据交换
-        action_tf_isc_w = current_eef_tf_isc_w @ action_tf_isc_e
+            # IsaacSim Action
+            action_10d_isc_e = self.action_10d_chunk_isc_e[self.actions_from_chunk_completed]
+            self.actions_from_chunk_completed += 1
+
+            # Tf Action (gripper frame)
+            action_tf_isc_e, gripper_width = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(action_10d_isc_e)
+            
+            # 高低层数据交换
+            action_tf_isc_w = current_eef_tf_isc_w @ action_tf_isc_e
 
         # ========================================== Low Level Policy ========================================== #
-        # 世界坐标 -> 体坐标
-        current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)
-        target_eef_tf_isc_w = current_world_tf_b @ action_tf_isc_w
+        if self.STEP % self.low_level_step_interval == 0:
+            
+            # 世界坐标 -> 体坐标
+            current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)
+            target_eef_tf_isc_w = current_world_tf_b @ action_tf_isc_w
 
-        # 转为体坐标
-        target_eef_tf_isc_b = target_eef_tf_isc_w
+            # 转为体坐标
+            target_eef_tf_isc_b = target_eef_tf_isc_w
 
-        # Robot Action
-        action_robot = self.low_level_controller.tf_b_to_joint(target_eef_tf_isc_b, gripper_width)
+            # Robot Action
+            action_robot = self.low_level_controller.tf_b_to_joint(target_eef_tf_isc_b, gripper_width)
 
+        # 更新环境步
+        self.STEP += 1
+        self.STEP %= self.ENV_FREQ
 
         return action_robot, viz
 
