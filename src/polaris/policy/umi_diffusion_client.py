@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import sys
 from pathlib import Path
 
+import torch
 import numpy as np
 from openpi_client import websocket_client_policy
 from polaris.policy.abstract_client import InferenceClient, PolicyArgs
@@ -220,6 +221,28 @@ class UMIObservationHistory:
         return np.moveaxis(image, -1, 0)
 
 
+
+@dataclass
+class RealtimeTraj:
+
+    def __init__(self):
+        #TODO 创建 buffer 数据存储 数据时间与数据点
+
+    @staticmethod
+    def build_data(start_time, traj_tf_w, traj_grip_width, freq):
+        #TODO 默认 start_time 为第一个数据点, 后面数据点时间为 start_time 累加 1/freq， 返回 time 与 tf 对应的数据
+
+    def update(self, data):
+        #TODO 更新自己的 time traj 数据，新加入 data 的 start_time 会覆盖原来 buffer 中的数据，保证后续的轨迹是最新的
+    
+    def get_wbc_traj_w(self, times):
+        #TODO times 是一系列时间， 根据 times 返回一系列 tf
+        #对于大于或小于当前数据 time 的 times 将取第一个或最后一个数据
+    
+    def get_wbc_grip(self, current_time):
+        # TODO 返回当前时间的夹抓宽度
+
+
 @InferenceClient.register(client_name="UmiGripperPos")
 class UmiGripperPosClient(InferenceClient):
     def __init__(self, args: PolicyArgs, env_cfg: ManagerBasedRLEnvCfg =None) -> None:
@@ -252,6 +275,9 @@ class UmiGripperPosClient(InferenceClient):
             max_horizon=self.max_obs_horizon,
         )
 
+        # Create Command Trajectory Buffer (High/Low Level Policy)
+        self.realtime_traj = RealtimeTraj()
+
         # Create Controller (Low Level Policy)
         self.low_level_controller = UMI_Gripper_Controller()
 
@@ -271,6 +297,8 @@ class UmiGripperPosClient(InferenceClient):
         print("High Level Frequency = ", self.HIGH_LEVEL_TRAJ_FREQ)
         print("Low Level Frequency = ", self.LOW_LEVEL_FREQ)
 
+        self.action_robot    = None
+
     @property
     def rerender(self) -> bool:
         return False
@@ -287,9 +315,10 @@ class UmiGripperPosClient(InferenceClient):
 
     def reset(self):
         self.actions_from_chunk_completed = 0
-        self.action_10d_chunk_isc_e = None
+        self.action_robot = None
         self._needs_server_reset = True
         self.STEP = 0
+        self.realtime_traj.clear()
         self.umi_obs_history.clear()
 
     def infer(
@@ -300,7 +329,6 @@ class UmiGripperPosClient(InferenceClient):
         """
         viz = None
         curr_obs_umi = self._extract_observation(obs)
-        self.umi_obs_history.add(curr_obs_umi)
 
         current_eef_tf_isc_b  = curr_obs_umi["eef_tf_isc_b"]
         current_eef_tf_isc_w  = curr_obs_umi["eef_tf_isc_w"]
@@ -309,6 +337,7 @@ class UmiGripperPosClient(InferenceClient):
 
         # ========================================== High Level Policy ========================================== #
         if self.STEP % self.high_level_step_interval == 0:
+            self.umi_obs_history.add(curr_obs_umi)
 
             if (self.actions_from_chunk_completed % self.action_open_loop_horizon == 0):
                 self.actions_from_chunk_completed = 0
@@ -330,46 +359,58 @@ class UmiGripperPosClient(InferenceClient):
                 self.action_10d_chunk_isc_e = server_response["actions"]
                 viz = curr_obs_umi["gopro"]
 
-                action_chunck_tf_isc_e, _ = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
-                action_chunck_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ action_chunck_tf_isc_e
+                target_traj_tf_isc_e, target_traj_gripper_width = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
+                target_traj_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ target_traj_tf_isc_e
                 viz = self.visual_debug(
                     viz,
                     GoPro_2_7K,
-                    action_chunck_tf_isc_w,
+                    target_traj_tf_isc_w,
                     current_eef_tf_isc_w,
                 )
+
+                # ============ 数据接口 ============= #                
+                data = self.realtime_traj.build_data(
+                    current_timestamp, 
+                    target_traj_tf_isc_w, 
+                    target_traj_gripper_width, 
+                    self.HIGH_LEVEL_TRAJ_FREQ)
+                
+                self.realtime_traj.update(data)
 
             if return_viz and viz is None:
                 viz = curr_obs_umi["gopro"]
 
-            # IsaacSim Action
-            action_10d_isc_e = self.action_10d_chunk_isc_e[self.actions_from_chunk_completed]
             self.actions_from_chunk_completed += 1
-
-            # Tf Action (gripper frame)
-            action_tf_isc_e, gripper_width = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(action_10d_isc_e)
             
-            # 高低层数据交换
-            action_tf_isc_w = current_eef_tf_isc_w @ action_tf_isc_e
 
         # ========================================== Low Level Policy ========================================== #
         if self.STEP % self.low_level_step_interval == 0:
             
-            # 世界坐标 -> 体坐标
+            # 使用 buffer 数据
+            target_tf_isc_w      = self.realtime_traj.get_wbc_traj_w(current_timestamp)
+            target_gripper_width = self.realtime_traj.get_wbc_grip(current_timestamp)
+
+            # 世界坐标 -> 体坐标 (Real Time 数据)
             current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)
-            target_eef_tf_isc_w = current_world_tf_b @ action_tf_isc_w
+            target_tf_isc_b = current_world_tf_b @ target_tf_isc_w
 
-            # 转为体坐标
-            target_eef_tf_isc_b = target_eef_tf_isc_w
+            # LL WBC 推理
+            action_robot = self.low_level_controller.tf_b_to_joint(
+                target_tf_isc_b,
+                target_gripper_width
+                )
+            
+            self.action_robot = action_robot
 
-            # Robot Action
-            action_robot = self.low_level_controller.tf_b_to_joint(target_eef_tf_isc_b, gripper_width)
+            # 后处理 (在 ActionCfg 中已经处理过了)
+            # self.action_robot = self.action_robot * action_scale + action_offset
+
 
         # 更新环境步
         self.STEP += 1
         self.STEP %= self.ENV_FREQ
 
-        return action_robot, viz
+        return self.action_robot, viz
 
     def _extract_observation(self, obs_dict) -> dict:
 
