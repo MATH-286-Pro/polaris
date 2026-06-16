@@ -225,7 +225,8 @@ class UMIObservationHistory:
 @dataclass
 class RealtimeTraj:
 
-    def __init__(self):
+    def __init__(self, history_s: float = 2.0):
+        self.history_s = float(history_s)
         self.time = np.empty((0,), dtype=np.float64)
         self.traj_tf_w = np.empty((0, 4, 4), dtype=np.float32)
         self.traj_grip_width = np.empty((0,), dtype=np.float32)
@@ -271,6 +272,8 @@ class RealtimeTraj:
             self.time = time_seq
             self.traj_tf_w = traj_tf_w
             self.traj_grip_width = traj_grip_width
+
+        self._prune_history(time_seq[0])
     
 
     # 对于大于或小于当前数据 time 的 times 将取第一个或最后一个数据。
@@ -307,6 +310,19 @@ class RealtimeTraj:
         self.time = np.empty((0,), dtype=np.float64)
         self.traj_tf_w = np.empty((0, 4, 4), dtype=np.float32)
         self.traj_grip_width = np.empty((0,), dtype=np.float32)
+
+    def _prune_history(self, current_time: float):
+        keep_start = np.searchsorted(
+            self.time,
+            float(current_time) - self.history_s,
+            side="left",
+        )
+        if keep_start <= 0:
+            return
+
+        self.time = self.time[keep_start:]
+        self.traj_tf_w = self.traj_tf_w[keep_start:]
+        self.traj_grip_width = self.traj_grip_width[keep_start:]
 
 
     @staticmethod
