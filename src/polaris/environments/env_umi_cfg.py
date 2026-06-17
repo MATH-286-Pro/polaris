@@ -46,6 +46,7 @@ from .mdp.observations import body_tf_b_priv, body_tf_w_priv, arm_joint_pos, gri
 from .mdp.actions import GripperWidthJointPositionActionCfg
 from .. import tool_linalg
 from .sensor.camera import GoPro_2_7K
+from .mdp.events import set_material_mirror
 
 
 # ======================== Action ========================#
@@ -133,6 +134,14 @@ class EventCfg(BasicEventCfg):
 
     # In BasicEventCfg there are
     # reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    
+    set_material_mirror = EventTerm(
+        func=set_material_mirror,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*mirror"]),
+        }, 
+    )
 
     set_joint_x = EventTerm(
         func=mdp.reset_joints_by_offset,
