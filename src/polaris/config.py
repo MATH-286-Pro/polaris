@@ -40,6 +40,8 @@ class PolicyArgs:
     host: str = "0.0.0.0"
     port: int = 8000
     open_loop_horizon: int | None = 8
+    freq_traj_high: int = 20
+    freq_low:  int = 50
     trajectory_path: str | None = None
     trajectory_index: int = 0
     trajectory_stride: int = 1
