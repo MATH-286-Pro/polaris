@@ -17,6 +17,7 @@ from polaris.robot.robot_cfg import (
     UMI_GRIPPER_FRAME_CFG,
     UMI_GRIPPER_FINGER_JOINTS,
     UMI_GRIPPER_ARM_JOINTS,
+    UMI_GRIPPER_FINGER_BODY_NAMES,
 )
 
 from pxr import Usd, UsdGeom, UsdPhysics
@@ -46,7 +47,7 @@ from .mdp.observations import body_tf_b_priv, body_tf_w_priv, arm_joint_pos, gri
 from .mdp.actions import GripperWidthJointPositionActionCfg
 from .. import tool_linalg
 from .sensor.camera import GoPro_2_7K
-from .mdp.events import set_material_mirror
+from .mdp.events import set_material_mirror, set_material_friction
 
 
 # ======================== Action ========================#
@@ -141,6 +142,16 @@ class EventCfg(BasicEventCfg):
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=[".*mirror"]),
         }, 
+    )
+
+    set_material_friction_fingers = EventTerm(
+        func=set_material_friction,
+        mode="startup",
+        params={
+            "static_friction": 2.0,
+            "dynamic_friction": 2.0,
+            "asset_cfg": SceneEntityCfg("robot", body_names=UMI_GRIPPER_FINGER_BODY_NAMES),
+        },
     )
 
     set_joint_x = EventTerm(

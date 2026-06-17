@@ -78,3 +78,47 @@ def set_material_mirror(
                     material,
                     bindingStrength=UsdShade.Tokens.strongerThanDescendants,
                 )
+
+
+def set_material_friction(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int] | None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    static_friction: float = 2.0,
+    dynamic_friction: float = 2.0,
+    friction_combine_mode: str = "average",
+):
+    del env_ids
+
+    robot = env.scene[asset_cfg.name]
+    stage = sim_utils.get_current_stage()
+    material_path = "/World/Materials/material_friction"
+    material_cfg = sim_utils.RigidBodyMaterialCfg(
+        static_friction=static_friction,
+        dynamic_friction=dynamic_friction,
+        friction_combine_mode=friction_combine_mode,
+    )
+    material_cfg.func(material_path, material_cfg)
+
+    collision_root_paths = []
+    fallback_collision_prim_paths = []
+    root_prims = sim_utils.find_matching_prims(robot.cfg.prim_path, stage=stage)
+    for root_prim in root_prims:
+        for prim in Usd.PrimRange(root_prim):
+            if prim.GetName() in asset_cfg.body_names:
+                for child in Usd.PrimRange(prim):
+                    if child.GetName() == "collisions":
+                        collision_root_paths.append(child.GetPath().pathString)
+                    elif child.HasAPI(UsdPhysics.CollisionAPI):
+                        fallback_collision_prim_paths.append(child.GetPath().pathString)
+
+    prim_paths = collision_root_paths or fallback_collision_prim_paths
+    if not prim_paths:
+        raise RuntimeError(
+            f"Could not find collision prims under {asset_cfg.body_names}"
+            f"under '{robot.cfg.prim_path}'. "
+            f"Available body names: {robot.body_names}"
+        )
+
+    for prim_path in prim_paths:
+        sim_utils.bind_physics_material(prim_path, material_path, stage=stage)
