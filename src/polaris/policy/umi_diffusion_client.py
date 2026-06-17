@@ -257,8 +257,8 @@ class UmiGripperPosClient(InferenceClient):
 
         # 维护内部 step buffer 用于异步控制
         self.STEP = 0
-        self.HIGH_LEVEL_TRAJ_FREQ = 20 #Hz
-        self.LOW_LEVEL_FREQ  = 20 #Hz
+        self.HIGH_LEVEL_TRAJ_FREQ = args.freq_traj_high #Hz
+        self.LOW_LEVEL_FREQ  = args.freq_low #Hz
         self.ENV_FREQ = int(1.0 / (env_cfg.sim.dt * env_cfg.decimation))
 
         self.high_level_step_interval = int(self.ENV_FREQ / self.HIGH_LEVEL_TRAJ_FREQ)
