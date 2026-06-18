@@ -13,6 +13,7 @@ from .. import tool_linalg
 from ..robot.robot_controller import UMI_Gripper_Controller, WBC_Controller
 from ..robot.robot_cfg import UNITREE_A2_VX300S_OFFSET_EEF_TF_E
 from ..environments.sensor.camera import GoPro_2_7K, FISHEYE_CAMERA_API
+from ..environments import debug
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 ROBOT_UMI_DIR = REPO_DIR / "robot_umi_module"
@@ -462,6 +463,15 @@ class UmiGripperPosClient(InferenceClient):
 
         self.action_robot    = None
 
+
+        # DEBUG
+        DEBUG = True        
+        self.target_eef_tf_marker_1  = debug.TfFrameMarker("/Visuals/TF1", debug=DEBUG)
+        self.target_eef_tf_marker_2  = debug.TfFrameMarker("/Visuals/TF2", debug=DEBUG)
+        self.target_eef_tf_marker_3  = debug.TfFrameMarker("/Visuals/TF3", debug=DEBUG)
+        self.target_eef_tf_marker_4  = debug.TfFrameMarker("/Visuals/TF4", debug=DEBUG)
+        self.target_eef_tf_marker_5  = debug.TfFrameMarker("/Visuals/TF5", debug=DEBUG)
+
     @property
     def rerender(self) -> bool:
         return False
@@ -540,6 +550,14 @@ class UmiGripperPosClient(InferenceClient):
                     self.HIGH_LEVEL_TRAJ_FREQ)
                 
                 self.realtime_traj.update(data)
+
+                # ========================================== Debug ========================================== #
+                self.target_eef_tf_marker_1.update(target_traj_tf_isc_w[0,1-1], "cuda")
+                self.target_eef_tf_marker_2.update(target_traj_tf_isc_w[0,4-1], "cuda")
+                self.target_eef_tf_marker_3.update(target_traj_tf_isc_w[0,8-1], "cuda")
+                self.target_eef_tf_marker_4.update(target_traj_tf_isc_w[0,12-1], "cuda")
+                self.target_eef_tf_marker_5.update(target_traj_tf_isc_w[0,16-1], "cuda")
+
 
             if return_viz and viz is None:
                 viz = curr_obs_umi["gopro"]
