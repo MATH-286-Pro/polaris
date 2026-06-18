@@ -6,7 +6,9 @@ from polaris.policy.abstract_client import InferenceClient, PolicyArgs
 # Joint Position Client for DROID
 @InferenceClient.register(client_name="DroidJointPos")
 class DroidJointPosClient(InferenceClient):
-    def __init__(self, args: PolicyArgs) -> None:
+    def __init__(self, args: PolicyArgs, env_cfg=None) -> None:
+        del env_cfg
+
         self.args = args
         if args.open_loop_horizon is None:
             raise ValueError("open_loop_horizon must be set for DroidJointPosClient")

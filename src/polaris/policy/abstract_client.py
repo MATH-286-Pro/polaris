@@ -21,15 +21,15 @@ class InferenceClient(ABC):
         return decorator
 
     @staticmethod
-    def get_client(policy_args: PolicyArgs) -> "InferenceClient":
+    def get_client(policy_args: PolicyArgs, env_cfg=None) -> "InferenceClient":
         if policy_args.client not in InferenceClient.REGISTERED_CLIENTS:
             raise ValueError(
                 f"Client {policy_args.client} not found. Available clients: {list(InferenceClient.REGISTERED_CLIENTS.keys())}"
             )
-        return InferenceClient.REGISTERED_CLIENTS[policy_args.client](policy_args)
+        return InferenceClient.REGISTERED_CLIENTS[policy_args.client](policy_args, env_cfg=env_cfg)
 
     @abstractmethod
-    def __init__(self, args) -> None:
+    def __init__(self, args, env_cfg=None) -> None:
         """
         Initializes the client.
         """
