@@ -10,7 +10,7 @@ from polaris.policy.abstract_client import InferenceClient, PolicyArgs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
 from .. import tool_linalg
-from ..robot.robot_controller import UMI_Gripper_Controller
+from ..robot.robot_controller import UMI_Gripper_Controller, WBC_Controller
 from ..environments.sensor.camera import GoPro_2_7K, FISHEYE_CAMERA_API
 
 REPO_DIR = Path(__file__).resolve().parents[3]
@@ -390,8 +390,11 @@ class UmiGripperPosClient(InferenceClient):
         self.realtime_traj = RealtimeTraj()
 
         # Create Controller (Low Level Policy)
-        self.low_level_controller = UMI_Gripper_Controller()
+        device = "cuda" #TODO hard coding
+        model_path = "/home/ece-486/Documents/SP_PBL/polaris/robot_model_wbc/2026-05-27_02-22-04/exported/policy_10009.jit"
+        self.low_level_controller = WBC_Controller(model_path, device)
 
+        
         # 维护内部 step buffer 用于异步控制
         self.STEP = 0
         self.HIGH_LEVEL_TRAJ_FREQ = args.freq_traj_high #Hz
