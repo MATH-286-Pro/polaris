@@ -51,6 +51,42 @@ WBC_TARGET_TRAJECTORY_LENGTH = 5
 WBC_EE_KEYPOINT_DIM = 9
 WBC_EE_TARGET_DIM = len(WBC_TRAJ_OFFSET) * WBC_EE_KEYPOINT_DIM
 
+
+def _viewer_recording_camera_cfg(eye, lookat) -> CameraCfg:
+    eye = np.asarray(eye, dtype=float)
+    lookat = np.asarray(lookat, dtype=float)
+
+    forward = lookat - eye
+    forward = forward / np.linalg.norm(forward)
+
+    world_up = np.array([0.0, 0.0, 1.0])
+    right = np.cross(forward, world_up)
+    right = right / np.linalg.norm(right)
+    up = np.cross(right, forward)
+
+    # IsaacLab's "opengl" camera convention looks along local -Z with +Y up.
+    rot = np.column_stack([right, up, -forward])
+    quat = tool_linalg._rot_to_quat(rot)
+
+    return CameraCfg(
+        prim_path="{ENV_REGEX_NS}/scene/realtime_default_cam",
+        height=720,
+        width=1280,
+        data_types=["rgb", "semantic_segmentation"],
+        colorize_semantic_segmentation=False,
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=1.0476,
+            horizontal_aperture=2.5452,
+            vertical_aperture=1.4721,
+        ),
+        offset=CameraCfg.OffsetCfg(
+            pos=tuple(float(v) for v in eye),
+            rot=tuple(float(v) for v in quat),
+            convention="opengl",
+        ),
+    )
+
+
 # ======================== Action ========================#
 @configclass
 class ActionCfg:
@@ -468,3 +504,7 @@ class UMIWBCEnvCfg(BasicEnvCfg):
 
     def dynamic_setup(self, *args):
         self.scene.dynamic_setup(*args)
+        self.scene.external_cam = _viewer_recording_camera_cfg(
+            self.viewer.eye,
+            self.viewer.lookat,
+        )

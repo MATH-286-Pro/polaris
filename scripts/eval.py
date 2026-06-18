@@ -82,6 +82,7 @@ def main(eval_args: EvalArgs):
 
     video = []
     horizon = env.max_episode_length
+    video_fps = round(1.0 / env.step_dt)
     bar = tqdm.tqdm(range(horizon))
     obs, info = env.reset(
         object_positions=initial_conditions[episode % len(initial_conditions)],
@@ -112,7 +113,7 @@ def main(eval_args: EvalArgs):
 
             # Save video and metadata
             filename = run_folder / f"episode_{episode}.mp4"
-            mediapy.write_video(filename, video, fps=15)
+            mediapy.write_video(filename, video, fps=video_fps)
 
             # Log episode results to CSV
             episode_data = {

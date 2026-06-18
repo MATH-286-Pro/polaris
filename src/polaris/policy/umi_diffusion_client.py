@@ -474,7 +474,7 @@ class UmiGripperPosClient(InferenceClient):
         Return the camera views how the model sees it
         """
         curr_obs = self._extract_observation(request)
-        return curr_obs["camera0_rgb"]
+        return curr_obs["recording_rgb"]
 
     def reset(self):
         self.actions_from_chunk_completed = 0
@@ -491,8 +491,8 @@ class UmiGripperPosClient(InferenceClient):
         """
         Infer the next action from the policy in a server-client setup
         """
-        viz = None
         curr_obs_umi = self._extract_observation(obs)
+        viz = curr_obs_umi["recording_rgb"]
 
         current_eef_tf_isc_b  = curr_obs_umi["eef_tf_isc_b"]
         current_eef_tf_isc_w  = curr_obs_umi["eef_tf_isc_w"]
@@ -521,16 +521,15 @@ class UmiGripperPosClient(InferenceClient):
                 infer_ms = server_response["server_timing"]["infer_ms"]
 
                 self.action_10d_chunk_isc_e = server_response["actions"]
-                viz = curr_obs_umi["gopro"]
-
                 target_traj_tf_isc_e, target_traj_gripper_width = UMI_ACTION_API.ACTION_10D_TO_TF_GRIPPER(self.action_10d_chunk_isc_e)
                 target_traj_tf_isc_w    = current_eef_tf_isc_w[None, None, :, :] @ target_traj_tf_isc_e
-                viz = self.visual_debug(
-                    viz,
-                    GoPro_2_7K,
-                    target_traj_tf_isc_w,
-                    current_eef_tf_isc_w,
-                )
+                if curr_obs_umi["recording_camera_name"] == "wrist_cam":
+                    viz = self.visual_debug(
+                        viz,
+                        GoPro_2_7K,
+                        target_traj_tf_isc_w,
+                        current_eef_tf_isc_w,
+                    )
 
                 # ============ 数据接口 ============= #                
                 data = self.realtime_traj.build_data(
@@ -619,7 +618,11 @@ class UmiGripperPosClient(InferenceClient):
     def _extract_observation(self, obs_dict) -> dict:
 
         # 处理 Image
-        camera_rgb     = obs_dict["splat"].get("wrist_cam")
+        splat_obs = obs_dict["splat"]
+        camera_rgb = splat_obs.get("wrist_cam")
+        if camera_rgb is None:
+            raise KeyError("Expected wrist_cam in obs['splat'] for policy inference")
+        recording_camera_name, recording_rgb = self._recording_camera_view(splat_obs)
         input_height, input_width = camera_rgb.shape[:2]
 
         transform = get_image_transform(
@@ -650,7 +653,21 @@ class UmiGripperPosClient(InferenceClient):
 
             "arm_joint":                       arm_joint,
             "gopro":                           camera_rgb,
+            "recording_camera_name":           recording_camera_name,
+            "recording_rgb":                   recording_rgb,
         }
+
+    def _recording_camera_view(self, splat_obs: dict) -> tuple[str, np.ndarray]:
+        for camera_name in ("external_cam", "wrist_cam"):
+            image = splat_obs.get(camera_name)
+            if image is not None:
+                return camera_name, image
+
+        if not splat_obs:
+            raise KeyError("Expected at least one camera image in obs['splat']")
+
+        camera_name, image = next(iter(splat_obs.items()))
+        return camera_name, image
 
     def visual_debug(self, img, cam_cfg, traj_tf_isc_w, current_eef_tf_isc_w):
 
