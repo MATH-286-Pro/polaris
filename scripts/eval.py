@@ -75,7 +75,10 @@ def main(eval_args: EvalArgs):
         simulation_app.close()
         return
 
-    policy_client: InferenceClient = InferenceClient.get_client(eval_args.policy)
+    policy_client: InferenceClient = InferenceClient.get_client(
+        eval_args.policy,
+        env_cfg=env.cfg,
+    )
 
     video = []
     horizon = env.max_episode_length

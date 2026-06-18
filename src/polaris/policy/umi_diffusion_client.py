@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 from openpi_client import websocket_client_policy
 from polaris.policy.abstract_client import InferenceClient, PolicyArgs
+from isaaclab.envs import ManagerBasedRLEnvCfg
 
 from .. import tool_linalg
 from ..robot.robot_controller import UMI_Gripper_Controller
@@ -221,10 +222,12 @@ class UMIObservationHistory:
 
 @InferenceClient.register(client_name="UmiGripperPos")
 class UmiGripperPosClient(InferenceClient):
-    def __init__(self, args: PolicyArgs) -> None:
+    def __init__(self, args: PolicyArgs, env_cfg: ManagerBasedRLEnvCfg =None) -> None:
         self.args = args
         if args.open_loop_horizon is None:
             raise ValueError("open_loop_horizon must be set for UmiGripperPosClient")
+        if env_cfg is None:
+            raise ValueError("env_cfg must be passed when creating UmiGripperPosClient")
 
         self.client_policy = websocket_client_policy.WebsocketClientPolicy(
             host=args.host,
@@ -254,11 +257,9 @@ class UmiGripperPosClient(InferenceClient):
 
         # 维护内部 step buffer 用于异步控制
         self.STEP = 0
-        # infer() is called once per environment policy step. env_umi_cfg sets
-        # decimation=5 and sim.dt=1/100, so this client runs at 20Hz, not sim Hz.
-        self.ENV_FREQ = 20 #Hz   #TODO 需要变成自动的
         self.HIGH_LEVEL_TRAJ_FREQ = 20 #Hz
         self.LOW_LEVEL_FREQ  = 20 #Hz
+        self.ENV_FREQ = int(1.0 / (env_cfg.sim.dt * env_cfg.decimation))
 
         self.high_level_step_interval = int(self.ENV_FREQ / self.HIGH_LEVEL_TRAJ_FREQ)
         self.low_level_step_interval  = int(self.ENV_FREQ / self.LOW_LEVEL_FREQ)

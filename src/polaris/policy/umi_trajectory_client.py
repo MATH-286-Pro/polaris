@@ -11,7 +11,9 @@ from .. import tool_linalg
 class UmiTrajectoryClient(InferenceClient):
     """Open-loop UMI controller that plays one trajectory from a pickle file."""
 
-    def __init__(self, args: PolicyArgs) -> None:
+    def __init__(self, args: PolicyArgs, env_cfg=None) -> None:
+        del env_cfg
+
         if args.trajectory_path is None:
             raise ValueError("trajectory_path must be set for UmiTrajectoryClient")
         if args.trajectory_stride < 1:
