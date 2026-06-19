@@ -8,7 +8,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.sensors import CameraCfg, TiledCameraCfg
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 from isaaclab.assets import Articulation
@@ -160,6 +162,51 @@ def ee_target_pos_b(env: ManagerBasedRLEnv):
     target = torch.zeros(env.num_envs, WBC_TARGET_TRAJECTORY_LENGTH * WBC_EE_KEYPOINT_DIM, device=env.device)
     return target
 
+def _visualize_ee_target_pos_b_debug(env: ManagerBasedRLEnv, eef_tf_w: torch.Tensor) -> None:
+    visualizer = getattr(env, "_polaris_wbc_debug_target_visualizer", None)
+    if visualizer is None:
+        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg.prim_path = "/Visuals/WBC/ee_target_pos_b_debug"
+        marker_cfg.markers["frame"].scale = (0.08, 0.08, 0.08)
+        visualizer = VisualizationMarkers(marker_cfg)
+        setattr(env, "_polaris_wbc_debug_target_visualizer", visualizer)
+
+    target_pos_w = eef_tf_w[:, :3, 3]
+    target_quat_w = tool_linalg.quat_from_matrix(eef_tf_w[:, :3, :3])
+    visualizer.visualize(target_pos_w, target_quat_w)
+
+def ee_target_pos_b_debug(env: ManagerBasedRLEnv):
+    robot = env.scene["robot"]
+    base_link_index = robot.find_bodies(EE_REF_LINK_NAME)[0][0]
+    base_tf_w = tool_linalg.pose_2_tf(robot.data.body_pose_w[:, base_link_index])
+
+    env_step = env.episode_length_buf[0]
+    env_real_time = env_step * env.step_dt
+
+    eef_tf_w = torch.eye(4, dtype=base_tf_w.dtype, device=env.device).unsqueeze(0).repeat(env.num_envs, 1, 1)
+    eef_tf_w[:, :3, 3] = torch.tensor([0.0, 0.0, 0.6], dtype=base_tf_w.dtype, device=env.device)
+
+    _visualize_ee_target_pos_b_debug(env, eef_tf_w)
+
+    world_tf_b = torch.linalg.inv(base_tf_w)
+    eef_tf_b = world_tf_b @ eef_tf_w
+
+    target_pos_b = eef_tf_b[:, :3, 3]
+    axis_x_b = eef_tf_b[:, :3, 0]
+    axis_z_b = eef_tf_b[:, :3, 2]
+
+    eef_3kp_b = torch.cat(
+        [
+            target_pos_b,
+            target_pos_b + CUBE_LENGTH * axis_x_b,
+            target_pos_b + CUBE_LENGTH * axis_z_b,
+        ],
+        dim=1,
+    )
+
+    eef_traj_3kp_b = eef_3kp_b.repeat(1, WBC_TARGET_TRAJECTORY_LENGTH)
+
+    return eef_traj_3kp_b
 
 @configclass
 class ObservationCfg:
@@ -214,7 +261,7 @@ class ObservationCfg:
         """A2-vx300s low-level neural WBC observations."""
 
         ee_target_pos_b = ObsTerm(
-            func=ee_target_pos_b,
+            func=ee_target_pos_b_debug,  # DEBUG #00ff00
         )
 
         ee_current_pos_b = ObsTerm(
