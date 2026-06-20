@@ -24,27 +24,11 @@ class GoPro_2_7K:
 
     # Distortion
     # theta_d = theta + k1*theta^3 + k2*theta^5 + k3*theta^7 + k4*theta^9
-    D_RAW = np.array([
-        -6.629688912821408e-04,  # a
-        1.2804984241915596e-03,  # b
-        -2.2745668649115827e-07, # c
-        8.128422232975493e-10,   # d
-        -1.1063642471143477e-12, # e
-        6.419046128976403e-16,   # f
-    ])
-
-    # Scale the fisheye image radius while preserving the relative distortion
-    # shape: P_scaled(r) = P_raw(r / radius_scale).
-    radius_scale = 1.104402594417232
-    D = D_RAW / np.array(
-        [
-            1.0,
-            radius_scale,
-            radius_scale**2,
-            radius_scale**3,
-            radius_scale**4,
-            radius_scale**5,
-        ],
-        dtype=np.float64,
-    )
-
+    D = np.array([
+            0.0,  # coef_a
+            1/fx, # coef_b
+            0.0,  # coef_c
+            0.0,  # coef_d
+            0.0,  # coef_e
+            0.0,  # coef_f
+        ])
