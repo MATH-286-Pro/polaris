@@ -183,7 +183,8 @@ class UMIEnvCfg(BasicEnvCfg):
     scene.wrist_cam = TiledCameraCfg(
         prim_path=UMI_GRIPPER_CAMERA_PRIM_PATH,
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, 0.0),
+            # pos=(0.0, 0.0, 0.0),
+            pos=(0.003, 0.0, 0.003),
             rot=(1.0, 0.0, 0.0, 0.0),
             convention="world",
         ),
