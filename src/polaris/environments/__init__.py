@@ -3,6 +3,7 @@ from polaris.environments.manager_based_rl_splat_environment import (
     ManagerBasedRLSplatEnv,
 )
 from polaris.environments.env_droid_cfg import EnvCfg as DroidCfg
+from polaris.environments.env_umi_cfg import UMIEnvCfg
 from isaaclab.envs import ManagerBasedRLEnv
 
 # Import rubric system
@@ -130,6 +131,29 @@ gym.register(
                 checkers.reach("tape_00", threshold=0.2),
                 (checkers.lift("tape_00", threshold=0.04), [0]),
                 (checkers.is_within_xy("tape_00", "container_02", percent_threshold=0.8), [1]),
+            ]
+        ),
+    },
+)
+
+
+# =============================================================================
+# User Defined Environment Registration
+# =============================================================================
+
+gym.register(
+    id="UMI-PBL",
+    entry_point=ManagerBasedRLSplatEnv,
+    disable_env_checker=True,
+    order_enforce=False,
+    kwargs={
+        "env_cfg_entry_point": UMIEnvCfg,
+        "usd_file": str(DATA_PATH / "umi_pbl/scene.usda"),
+        "rubric": Rubric(
+            criteria=[
+                checkers.reach("blue_mug", threshold=0.2),
+                (checkers.lift("blue_mug", threshold=0.06), [0]),
+                (checkers.is_within_xy("blue_mug", "purple_plate", percent_threshold=0.8), [1]),
             ]
         ),
     },
