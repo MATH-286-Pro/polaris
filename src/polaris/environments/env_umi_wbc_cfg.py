@@ -20,7 +20,7 @@ from . import mdp as mdp
 from .env_basic_cfg import SceneCfg, BasicEnvCfg
 from .. import tool_linalg
 from .sensor.camera import GoPro_2_7K
-from .mdp.events import set_material_mirror, set_material_friction, set_passive_finger_joint_limits
+from .mdp.events import set_material_mirror, set_material_friction, set_passive_finger_joint_limits, reset_vx300s_arm_by_ee_pose
 from .mdp.observations import body_tf_b_priv, body_tf_w_priv, gripper_pos, arm_joint_pos
 from .mdp.actions import GripperWidthJointPositionActionCfg
 
@@ -136,15 +136,28 @@ class EventCfg:
     )
 
 
-    # reset_arm_elbow = EventTerm(
-    #     func=mdp.reset_joints_by_offset,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["wrist_angle"]),
-    #         "position_range": (np.deg2rad(30.0), np.deg2rad(30.0)),  # degree
-    #         "velocity_range": (0.0, 0.0),
-    #     },
-    # )
+    reset_eef_pos = EventTerm(
+        func=reset_vx300s_arm_by_ee_pose,
+        mode="reset",
+        params={
+            "x_range": (0.2, 0.2),
+            "z_range": (-0.3, -0.3),
+            "yaw_range": (0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("robot"),
+            "joint_names": UNITREE_A2_VX300S_ARM_JOINT_NAMES,
+        },
+    )
+
+
+    reset_arm_elbow = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["wrist_angle"]),
+            "position_range": (np.deg2rad(-60.0), np.deg2rad(-60.0)),  # degree
+            "velocity_range": (0.0, 0.0),
+        },
+    )
 
     open_claw = EventTerm(
         func=mdp.reset_joints_by_offset,
