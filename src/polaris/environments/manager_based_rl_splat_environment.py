@@ -56,7 +56,7 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             }
         }
 
-    def reset(self, object_positions: dict = {}, expensive=True, *args, **kwargs):
+    def reset(self, object_positions: dict | None = None, expensive=True, *args, **kwargs):
         """
         Reset the environment
 
@@ -74,10 +74,13 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
             self.rubric.reset()
 
         # Following predefined initial conditions
+        object_positions = object_positions or {}
         for obj, pose in object_positions.items():
             print(f"Setting initial condition for {obj} to {pose}")
-            pose = torch.tensor(pose)[None]
+            pose = torch.as_tensor(pose, dtype=torch.float32, device=self.device)[None]
+            root_velocity = torch.zeros((pose.shape[0], 6), dtype=pose.dtype, device=pose.device)
             self.scene[obj].write_root_pose_to_sim(pose)
+            self.scene[obj].write_root_velocity_to_sim(root_velocity)
         self.sim.render()
         self.scene.update(0)
         obs = (
