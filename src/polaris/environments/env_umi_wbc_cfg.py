@@ -188,6 +188,7 @@ def _visualize_ee_target_pos_b_debug(env: ManagerBasedRLEnv, eef_tf_w: torch.Ten
         visualizer = VisualizationMarkers(marker_cfg)
         setattr(env, "_polaris_wbc_debug_target_visualizer", visualizer)
 
+    visualizer.set_visibility(True)
     target_pos_w = eef_tf_w[:, :3, 3]
     target_quat_w = tool_linalg.quat_from_matrix(eef_tf_w[:, :3, :3])
     visualizer.visualize(target_pos_w, target_quat_w)
@@ -200,10 +201,19 @@ def ee_target_pos_b_debug(env: ManagerBasedRLEnv):
     env_step = env.episode_length_buf[0]
     env_real_time = env_step * env.step_dt
 
+    pos = torch.tensor([0.08, 0.0, 0.3], dtype=base_tf_w.dtype, device=env.device)
+    rot = tool_linalg.euler_rad_to_rot(np.array([0.0, np.deg2rad(45), 0.0]))
+    rot = torch.tensor(rot, dtype=base_tf_w.dtype, device=env.device)
     eef_tf_w = torch.eye(4, dtype=base_tf_w.dtype, device=env.device).unsqueeze(0).repeat(env.num_envs, 1, 1)
-    eef_tf_w[:, :3, 3] = torch.tensor([0.0, 0.0, 0.6], dtype=base_tf_w.dtype, device=env.device)
+    eef_tf_w[:, :3, 3] = pos
+    eef_tf_w[:, :3,:3] = rot
 
-    _visualize_ee_target_pos_b_debug(env, eef_tf_w)
+    if env_real_time <= 1.0:
+        _visualize_ee_target_pos_b_debug(env, eef_tf_w)
+    else:
+        visualizer = getattr(env, "_polaris_wbc_debug_target_visualizer", None)
+        if visualizer is not None:
+            visualizer.set_visibility(False)
 
     world_tf_b = torch.linalg.inv(base_tf_w)
     eef_tf_b = world_tf_b @ eef_tf_w

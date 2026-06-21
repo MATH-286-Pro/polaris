@@ -575,7 +575,13 @@ class UmiGripperPosClient(InferenceClient):
             wbc_obs = obs["wbc"].clone()
             wbc_obs[0, :45] = target_3keypoints_b[0, :]
 
-            self.wbc_obs_history.add(wbc_obs)
+            # 稳定
+            if current_timestamp < 1.2:
+                self.wbc_obs_history.add(obs["wbc"])
+            else:
+                self.wbc_obs_history.add(wbc_obs)
+    
+            # 获取 WBC 观测
             wbc_obs = self.wbc_obs_history.get()
 
             # LL WBC 推理
