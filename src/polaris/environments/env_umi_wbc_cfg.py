@@ -406,7 +406,7 @@ class UMIWBCEnvCfg(BasicEnvCfg):
     scene.wrist_cam = TiledCameraCfg(
         prim_path=UNITREE_A2_VX300S_CAMERA_PRIM_PATH,
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, 0.0),
+            pos=(0.003, 0.0, 0.0),
             rot=(1.0, 0.0, 0.0, 0.0),
             convention="world",
         ),
