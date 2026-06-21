@@ -17,11 +17,13 @@
 
 horizons=(10)
 robot_name="mirror"
-FREQ_TRAJ_HIGH=20
-FREQ_LOW=20
+FREQ_TRAJ_HIGH=10
+FREQ_LOW=50
 timestamp=$(date +"%Y%m%d_%H%M%S")
 # taskname=$"UMI-FLAT-TABLE"
-taskname=$"UMI-PBL-TABLE"
+# taskname=$"UMI-PBL-TABLE"
+# taskname=$"UMI-FLAT-TABLE-WBC"
+taskname=$"UMI-PBL-TABLE-WBC"
 
 for horizon in "${horizons[@]}"; do
   folder_name="${timestamp}_${robot_name}_h${horizon}_${FREQ_TRAJ_HIGH}hz"
