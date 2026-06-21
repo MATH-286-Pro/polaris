@@ -170,6 +170,10 @@ class EventCfg:
     )
 
 # ======================== Observation ========================#
+#00ff00 临时
+from .mdp import tools
+from polaris.robot.robot_cfg import UNITREE_A2_VX300S_OFFSET_EEF_TF_E
+
 def ee_target_pos_b(env: ManagerBasedRLEnv):
     # USE ZEROS
     target = torch.zeros(env.num_envs, WBC_TARGET_TRAJECTORY_LENGTH * WBC_EE_KEYPOINT_DIM, device=env.device)
@@ -203,6 +207,7 @@ def ee_target_pos_b_debug(env: ManagerBasedRLEnv):
 
     world_tf_b = torch.linalg.inv(base_tf_w)
     eef_tf_b = world_tf_b @ eef_tf_w
+    eef_tf_b = eef_tf_b @ torch.tensor(UNITREE_A2_VX300S_OFFSET_EEF_TF_E, device=env.device, dtype=torch.float32)
 
     target_pos_b = eef_tf_b[:, :3, 3]
     axis_x_b = eef_tf_b[:, :3, 0]
@@ -220,6 +225,51 @@ def ee_target_pos_b_debug(env: ManagerBasedRLEnv):
     eef_traj_3kp_b = eef_3kp_b.repeat(1, WBC_TARGET_TRAJECTORY_LENGTH)
 
     return eef_traj_3kp_b
+
+def temp_eef_body_key_points(
+    env: ManagerBasedRLEnv,
+    link_name: str,
+    ref_link_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    cube_length: float = 0.3,
+    ):
+
+    robot = env.scene[asset_cfg.name]
+
+    # 获取 EEF 位置 _w
+    body_id = robot.find_bodies(link_name)[0][0]
+    pos_quat_w = robot.data.body_pose_w[:, body_id]
+    tf_w    = tool_linalg.pose_2_tf(pos_quat_w)
+
+    # 获取 EEF 位置 _b
+    ref_body_id = robot.find_bodies(ref_link_name)[0][0]
+    ref_pos_quat_w = robot.data.body_pose_w[:, ref_body_id]
+    ref_tf_w    = tool_linalg.pose_2_tf(ref_pos_quat_w)
+    eef_tf_b = tool_linalg.tf_reference(tf_w, ref_tf_w)
+
+    # 转为 EEF OFFSET
+    eef_train_tf_eef = torch.tensor(UNITREE_A2_VX300S_OFFSET_EEF_TF_E, device=env.device, dtype=torch.float32)
+    eef_train_tf_b = eef_tf_b @ eef_train_tf_eef[None, :]
+
+    # 转为 3kp 表示
+    current_link_pos_b, current_link_rot_b = tools.tf_2_pos_rot(eef_train_tf_b)
+
+    axis_x_b = current_link_rot_b[:, :, 0]
+    axis_y_b = current_link_rot_b[:, :, 1]
+    axis_z_b = current_link_rot_b[:, :, 2]
+
+    current_link_pos_c_b = current_link_pos_b
+    current_link_pos_x_b = current_link_pos_b + cube_length * axis_x_b
+    current_link_pos_z_b = current_link_pos_b + cube_length * axis_z_b
+
+    current_link_3key_points_b = torch.cat(
+        [current_link_pos_c_b, 
+         current_link_pos_x_b, 
+         current_link_pos_z_b],
+         dim=1
+    )
+
+    return current_link_3key_points_b
 
 @configclass
 class ObservationCfg:
@@ -277,11 +327,22 @@ class ObservationCfg:
             func=ee_target_pos_b_debug,  # DEBUG #00ff00
         )
 
+        # ee_current_pos_b = ObsTerm(
+        #     func=mdp.body_keypoints,
+        #     params={
+        #         "current_link_name": EE_LINK_NAME,
+        #         "reference_link_name": EE_REF_LINK_NAME,
+        #         "asset_cfg": SceneEntityCfg("robot"),
+        #         "cube_length": CUBE_LENGTH,
+        #     },
+        #     clip=DEFAULT_OBS_CLIP,
+        # )
+
         ee_current_pos_b = ObsTerm(
-            func=mdp.body_keypoints,
+            func=temp_eef_body_key_points,
             params={
-                "current_link_name": EE_LINK_NAME,
-                "reference_link_name": EE_REF_LINK_NAME,
+                "link_name": EE_LINK_NAME,
+                "ref_link_name": EE_REF_LINK_NAME,
                 "asset_cfg": SceneEntityCfg("robot"),
                 "cube_length": CUBE_LENGTH,
             },

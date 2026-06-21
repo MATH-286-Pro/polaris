@@ -11,6 +11,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 
 from .. import tool_linalg
 from ..robot.robot_controller import UMI_Gripper_Controller, WBC_Controller
+from ..robot.robot_cfg import UNITREE_A2_VX300S_OFFSET_EEF_TF_E
 from ..environments.sensor.camera import GoPro_2_7K, FISHEYE_CAMERA_API
 
 REPO_DIR = Path(__file__).resolve().parents[3]
@@ -557,6 +558,9 @@ class UmiGripperPosClient(InferenceClient):
             # 世界坐标 -> 体坐标 (Real Time 数据), then align to WBC EE convention.
             current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)
             target_traj_tf_isc_b = current_world_tf_b[None, :, :] @ target_traj_tf_isc_w
+
+            # 对齐
+            target_traj_tf_isc_b = target_traj_tf_isc_b @ UNITREE_A2_VX300S_OFFSET_EEF_TF_E[None, :, :]
 
             target_3keypoints_b = tool_linalg.tf_2_keypoints(
                                             target_traj_tf_isc_b,
