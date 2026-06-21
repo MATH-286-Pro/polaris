@@ -222,6 +222,42 @@ class UMIObservationHistory:
 
 
 
+class WBC_OBSERVATION_HISTORY():
+    def __init__(self, obs_dim: int, history_length: int):
+        if obs_dim % history_length != 0:
+            raise ValueError(
+                f"WBC obs_dim={obs_dim} is not divisible by history_length={history_length}."
+            )
+
+        self.obs_dim = obs_dim
+        self.history_length = history_length
+        self.single_obs_dim = obs_dim // history_length   # 117
+        self._history: deque[torch.Tensor] = deque(maxlen=history_length)
+
+    def clear(self) -> None:
+        self._history.clear()
+
+    def add(self, wbc_obs: torch.Tensor) -> None:
+
+        if wbc_obs.ndim == 1:
+            wbc_obs = wbc_obs.unsqueeze(0)
+
+        if wbc_obs.shape[-1] == self.single_obs_dim:  # 117
+            current_frame =  wbc_obs.clone()
+        
+        if not self._history:
+            for _ in range(self.history_length):
+                self._history.append(current_frame.clone())
+        else:
+            self._history.append(current_frame.clone())
+
+    def get(self) -> torch.Tensor:
+        if not self._history:
+            raise RuntimeError("WBC observation history is empty. Call add() before get().")
+        return torch.cat(list(self._history), dim=-1)
+        
+
+
 @dataclass
 class RealtimeTraj:
 
@@ -393,6 +429,18 @@ class UmiGripperPosClient(InferenceClient):
         device = "cuda" #TODO hard coding
         model_path = "/home/ece-486/Documents/SP_PBL/polaris/robot_model_wbc/2026-05-27_02-22-04/exported/policy_10009.jit"
         self.low_level_controller = WBC_Controller(model_path, device)
+        
+        # Create Observation Buffer (Low Level Policy)
+        self.wbc_history_length = 5
+        self.wbc_target_time_offsets = np.array([0.0, 0.02, 0.04, 0.06, 1.0], dtype=np.float64)
+        self.wbc_target_traj_length = len(self.wbc_target_time_offsets)
+        self.wbc_keypoint_dim = 9
+        self.wbc_target_dim = self.wbc_target_traj_length * self.wbc_keypoint_dim
+        self.wbc_cube_length = 0.3
+        self.wbc_obs_history = WBC_OBSERVATION_HISTORY(
+            obs_dim=self.low_level_controller.policy.obs_dim,
+            history_length=self.wbc_history_length,
+        )
 
         
         # 维护内部 step buffer 用于异步控制
@@ -434,6 +482,7 @@ class UmiGripperPosClient(InferenceClient):
         self.STEP = 0
         self.realtime_traj.clear()
         self.umi_obs_history.clear()
+        self.wbc_obs_history.clear()
 
     def infer(
         self, obs: dict, instruction: str, return_viz: bool = False
@@ -501,16 +550,33 @@ class UmiGripperPosClient(InferenceClient):
         if self.STEP % self.low_level_step_interval == 0:
             
             # 使用 buffer 数据
-            target_tf_isc_w      = self.realtime_traj.get_wbc_traj_w(current_timestamp)
+            target_times = current_timestamp + self.wbc_target_time_offsets
+            target_traj_tf_isc_w = self.realtime_traj.get_wbc_traj_w(target_times)
             target_gripper_width = self.realtime_traj.get_wbc_grip(current_timestamp)
 
-            # 世界坐标 -> 体坐标 (Real Time 数据)
+            # 世界坐标 -> 体坐标 (Real Time 数据), then align to WBC EE convention.
             current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)
-            target_tf_isc_b = current_world_tf_b @ target_tf_isc_w
+            target_traj_tf_isc_b = current_world_tf_b[None, :, :] @ target_traj_tf_isc_w
+
+            target_3keypoints_b = tool_linalg.tf_2_keypoints(
+                                            target_traj_tf_isc_b,
+                                            self.wbc_cube_length,
+                                            out_type="torch",
+                                        )
+            target_3keypoints_b = target_3keypoints_b.flatten()[None, :]
+            
+            assert target_3keypoints_b.shape == (1,45)
+            
+            # 覆盖 wbc obs
+            wbc_obs = obs["wbc"].clone()
+            wbc_obs[0, :45] = target_3keypoints_b[0, :]
+
+            self.wbc_obs_history.add(wbc_obs)
+            wbc_obs = self.wbc_obs_history.get()
 
             # LL WBC 推理
             action_robot = self.low_level_controller.tf_b_to_joint(
-                target_tf_isc_b,
+                wbc_obs, 
                 target_gripper_width
                 )
             
@@ -525,6 +591,20 @@ class UmiGripperPosClient(InferenceClient):
         self.STEP %= self.ENV_FREQ
 
         return self.action_robot, viz
+
+    def _wbc_obs_with_target_keypoints_b(
+        self,
+        wbc_obs: torch.Tensor,
+        target_keypoints_b: np.ndarray,
+    ):
+        wbc_obs = wbc_obs.clone()
+        frame_target = torch.tensor(target_keypoints_b.flatten(), device="cuda")
+
+        for history_idx in range(self.wbc_history_length):
+            start = history_idx * self.wbc_obs_history.single_obs_dim
+            wbc_obs[..., start:start + 45] = frame_target
+
+        return wbc_obs
 
     def _extract_observation(self, obs_dict) -> dict:
 
