@@ -260,6 +260,65 @@ class WBC_OBSERVATION_HISTORY():
         
 
 
+class DEBUG_CLASS:
+    def __init__(self) -> None:
+        self.clear()
+
+    def add(
+        self,
+        timestamp: float,
+        target_eef_pos: np.ndarray,
+        current_eef_pos: np.ndarray,
+    ) -> None:
+        target_eef_pos = np.asarray(target_eef_pos, dtype=np.float32).reshape(3)
+        current_eef_pos = np.asarray(current_eef_pos, dtype=np.float32).reshape(3)
+        error = target_eef_pos - current_eef_pos
+
+        self.timestamps.append(float(timestamp))
+        self.target_eef_pos.append(target_eef_pos)
+        self.current_eef_pos.append(current_eef_pos)
+        self.eef_pos_error.append(error)
+        self.eef_pos_error_norm.append(float(np.linalg.norm(error)))
+
+    def clear(self) -> None:
+        self.timestamps: list[float] = []
+        self.target_eef_pos: list[np.ndarray] = []
+        self.current_eef_pos: list[np.ndarray] = []
+        self.eef_pos_error: list[np.ndarray] = []
+        self.eef_pos_error_norm: list[float] = []
+
+    def save_plot(self, debug_dir: str | Path, episode_idx: int) -> Path | None:
+        if not self.timestamps:
+            return None
+
+        import matplotlib.pyplot as plt
+
+        debug_dir = Path(debug_dir)
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        output_path = debug_dir / f"episode_{episode_idx}.png"
+
+        timestamps = np.asarray(self.timestamps, dtype=np.float64)
+        timestamps = timestamps - timestamps[0]
+        error = np.asarray(self.eef_pos_error, dtype=np.float32)
+        error_norm = np.asarray(self.eef_pos_error_norm, dtype=np.float32)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(timestamps, error[:, 0], label="x")
+        ax.plot(timestamps, error[:, 1], label="y")
+        ax.plot(timestamps, error[:, 2], label="z")
+        ax.plot(timestamps, error_norm, label="norm", linewidth=2.0)
+        ax.set_xlabel("time (s)")
+        ax.set_ylabel("target - current eef pos error (m)")
+        ax.set_title("EEF position error over time")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=150)
+        plt.close(fig)
+
+        return output_path
+
+
 @dataclass
 class RealtimeTraj:
 
@@ -426,6 +485,7 @@ class UmiGripperPosClient(InferenceClient):
 
         # Create Command Trajectory Buffer (High/Low Level Policy)
         self.realtime_traj = RealtimeTraj()
+        self.debug = DEBUG_CLASS()
 
         # Create Controller (Low Level Policy)
         device = "cuda" #TODO hard coding
@@ -494,6 +554,10 @@ class UmiGripperPosClient(InferenceClient):
         self.realtime_traj.clear()
         self.umi_obs_history.clear()
         self.wbc_obs_history.clear()
+        self.debug.clear()
+
+    def save_debug_plot(self, debug_dir: str | Path, episode_idx: int) -> Path | None:
+        return self.debug.save_plot(debug_dir, episode_idx)
 
     def infer(
         self, obs: dict, instruction: str, return_viz: bool = False
@@ -569,6 +633,11 @@ class UmiGripperPosClient(InferenceClient):
             target_times = current_timestamp + self.wbc_target_time_offsets
             target_traj_tf_isc_w = self.realtime_traj.get_wbc_traj_w(target_times)
             target_gripper_width = self.realtime_traj.get_wbc_grip(current_timestamp)
+            self.debug.add(
+                current_timestamp,
+                target_traj_tf_isc_w[0, :3, 3],
+                current_eef_tf_isc_w[:3, 3],
+            )
 
             # 世界坐标 -> 体坐标 (Real Time 数据), then align to WBC EE convention.
             current_world_tf_b = np.linalg.inv(current_base_tf_isc_w)

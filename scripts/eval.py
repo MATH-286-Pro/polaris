@@ -109,11 +109,13 @@ def main(eval_args: EvalArgs):
 
         bar.update(1)
         if term[0] or trunc[0] or bar.n >= horizon:
-            policy_client.reset()
-
             # Save video and metadata
             filename = run_folder / f"episode_{episode}.mp4"
             mediapy.write_video(filename, video, fps=15)
+            if hasattr(policy_client, "save_debug_plot"):
+                policy_client.save_debug_plot(run_folder, episode)
+
+            policy_client.reset()
 
             # Log episode results to CSV
             episode_data = {
