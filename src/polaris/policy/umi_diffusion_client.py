@@ -489,7 +489,10 @@ class UmiGripperPosClient(InferenceClient):
 
         # Create Controller (Low Level Policy)
         device = "cuda" #TODO hard coding
-        model_path = "/home/ece-486/Documents/SP_PBL/polaris/robot_model_wbc/2026-05-27_02-22-04/exported/policy_10009.jit"
+        model_path = args.low_level_policy_path
+        if not model_path:
+            raise ValueError("low_level_policy_path must be set for UmiGripperPosClient")
+        print("Low Level Policy Path = ", model_path)
         self.low_level_controller = WBC_Controller(model_path, device)
         
         # Create Observation Buffer (Low Level Policy)

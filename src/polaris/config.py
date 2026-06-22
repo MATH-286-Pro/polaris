@@ -42,6 +42,7 @@ class PolicyArgs:
     open_loop_horizon: int | None = 8
     freq_traj_high: int = 20
     freq_low:  int = 50
+    low_level_policy_path: str = "/home/ece-486/Documents/SP_PBL/polaris/robot_model_wbc/2026-05-27_02-22-04/exported/policy_10009.jit"
     trajectory_path: str | None = None
     trajectory_index: int = 0
     trajectory_stride: int = 1
