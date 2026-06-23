@@ -1,4 +1,5 @@
 from collections import deque
+import csv
 from dataclasses import dataclass, field
 import sys
 from pathlib import Path
@@ -301,6 +302,7 @@ class DEBUG_CLASS:
         timestamps = timestamps - timestamps[0]
         error = np.asarray(self.eef_pos_error, dtype=np.float32)
         error_norm = np.asarray(self.eef_pos_error_norm, dtype=np.float32)
+        self._save_csv_summary(debug_dir, episode_idx, error, error_norm)
 
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(timestamps, error[:, 0], label="x")
@@ -315,6 +317,34 @@ class DEBUG_CLASS:
         fig.tight_layout()
         fig.savefig(output_path, dpi=150)
         plt.close(fig)
+
+        return output_path
+
+    @staticmethod
+    def _save_csv_summary(
+        debug_dir: Path,
+        episode_idx: int,
+        error: np.ndarray,
+        error_norm: np.ndarray,
+    ) -> Path:
+        output_path = debug_dir / "tracking_error.csv"
+        write_header = not output_path.exists()
+
+        mean_error = error.mean(axis=0)
+        row = {
+            "episode": episode_idx,
+            "num_samples": int(error_norm.shape[0]),
+            "mean_error_x_m": float(mean_error[0]),
+            "mean_error_y_m": float(mean_error[1]),
+            "mean_error_z_m": float(mean_error[2]),
+            "mean_error_norm_m": float(error_norm.mean()),
+        }
+
+        with output_path.open("a", newline="") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=list(row.keys()))
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
         return output_path
 
