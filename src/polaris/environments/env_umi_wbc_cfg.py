@@ -56,6 +56,10 @@ def _viewer_recording_camera_cfg(eye, lookat) -> CameraCfg:
     eye = np.asarray(eye, dtype=float)
     lookat = np.asarray(lookat, dtype=float)
 
+    # Use a longer lens from farther away to reduce wide-angle perspective distortion
+    # while keeping a similar recording composition.
+    eye = lookat + 1.45 * (eye - lookat)
+
     forward = lookat - eye
     forward = forward / np.linalg.norm(forward)
 
@@ -70,12 +74,12 @@ def _viewer_recording_camera_cfg(eye, lookat) -> CameraCfg:
 
     return CameraCfg(
         prim_path="{ENV_REGEX_NS}/scene/realtime_default_cam",
-        height=720,
-        width=1280,
+        height=1440,
+        width=2560,
         data_types=["rgb", "semantic_segmentation"],
         colorize_semantic_segmentation=False,
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=1.0476,
+            focal_length=1.6,
             horizontal_aperture=2.5452,
             vertical_aperture=1.4721,
         ),
@@ -244,7 +248,7 @@ def ee_target_pos_b_debug(env: ManagerBasedRLEnv):
     eef_tf_w[:, :3, 3] = pos
     eef_tf_w[:, :3,:3] = rot
 
-    if env_real_time <= 1.0:
+    if env_real_time <= 0.1:
         _visualize_ee_target_pos_b_debug(env, eef_tf_w)
     else:
         visualizer = getattr(env, "_polaris_wbc_debug_target_visualizer", None)
@@ -491,8 +495,8 @@ class UMIWBCEnvCfg(BasicEnvCfg):
 
         self.episode_length_s = 30
 
-        self.viewer.eye = (0.8, -0.8, 0.8)
-        self.viewer.lookat = (0.0, 0.0, 0.2)
+        self.viewer.eye = (0.8, 0.5, 0.8)
+        self.viewer.lookat = (0.0, -0.1, 0.3)
 
         self.sim.dt = 1 / 200
         self.decimation = 4

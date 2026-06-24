@@ -575,7 +575,7 @@ class UmiGripperPosClient(InferenceClient):
             wbc_obs[0, :45] = target_3keypoints_b[0, :]
 
             # 稳定
-            if current_timestamp < 1.2:
+            if current_timestamp < 1.1:
                 self.wbc_obs_history.add(obs["wbc"])
             else:
                 self.wbc_obs_history.add(wbc_obs)
