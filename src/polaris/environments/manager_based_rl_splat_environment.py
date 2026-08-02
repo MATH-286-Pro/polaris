@@ -183,7 +183,16 @@ class ManagerBasedRLSplatEnv(ManagerBasedRLEnv):
     def setup_splat_robot(self):
         # Allocate robot splats and views on robot links to track
         more_splats = {}
-        robot_asset_path = Path(self.cfg.scene.robot.spawn.usd_path).parent
+        robot_spawn_cfg = self.cfg.scene.robot.spawn
+        robot_asset_file = getattr(robot_spawn_cfg, "asset_path", None)
+        if robot_asset_file is None:
+            robot_asset_file = getattr(robot_spawn_cfg, "usd_path", None)
+        if robot_asset_file is None:
+            raise TypeError(
+                "Robot spawn configuration must provide asset_path or usd_path, "
+                f"got {type(robot_spawn_cfg).__name__}."
+            )
+        robot_asset_path = Path(robot_asset_file).parent
         for ply in sorted(list(robot_asset_path.glob("SEGMENTED/*.ply"))):
             more_splats[ply.stem] = ply
             sim_path = ply.stem.replace("-", "/")
