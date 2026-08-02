@@ -1,3 +1,22 @@
+> [!IMPORTANT]
+> **Isaac Sim 5.1 NVIDIA driver compatibility:** On Ubuntu 24.04 with an
+> RTX 5080, NVIDIA driver `595.84` causes Isaac Sim 5.1 / Kit 107.3.3 to
+> crash with a segmentation fault immediately after `app ready`. A GDB
+> backtrace confirmed the crash in `librtx.scenedb.plugin.so`; it is not
+> caused by ROS 2 or BIOS settings. Use the certified R580 open driver
+> (`nvidia-driver-580-open`, tested with `580.173.02`) instead:
+>
+> ```bash
+> sudo apt update
+> sudo apt install nvidia-driver-580-open
+> sudo reboot
+> ```
+>
+> After rebooting, run `nvidia-smi` and confirm that the reported driver
+> version is `580.173.02` (or a compatible R580 release). Avoid upgrading
+> to R595/R610 until the installed Isaac Sim/Kit release explicitly
+> supports it.
+
 <img src="docs/images/Teaser Figure.png">
 
 ---
