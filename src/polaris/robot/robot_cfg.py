@@ -267,9 +267,20 @@ UNITREE_A2_VX300S_PASSIVE_FINGER_JOINTS = [
 UNITREE_A2_VX300S_OFFSET_EEF_TF_E = np.eye(4)
 UNITREE_A2_VX300S_OFFSET_EEF_TF_E[:3, 3] = np.array([0.0385 - 0.14, 0.0, 0.0])
 
+
 UNITREE_A2_VX300S_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path="robot_descriptions/a2-vx300s/a2-vx300s.usd",
+    spawn=sim_utils.UrdfFileCfg(
+        asset_path="robot_descriptions/urdf/a2-vx300s/a2-vx300s.urdf",
+        fix_base=True,
+        merge_fixed_joints=False,
+        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+            drive_type="force",
+            target_type="position",
+            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+                stiffness=0.0,
+                damping=0.0,
+            ),
+        ),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
