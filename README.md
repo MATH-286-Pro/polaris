@@ -1,3 +1,22 @@
+# PolaRiS-UMI
+
+Deploy pretrained UMI pick-and-place in the wild policy on Unitree A2 quadruped + VX300s robot arm in simulation.
+
+<table>
+  <tr>
+    <td width="62%" align="center">
+      <a href="docs/videos/eouside_0_x6.mp4">
+        <img src="docs/videos/eouside_0_x6_preview.gif" alt="External view — click to play video" width="100%">
+      </a>
+    </td>
+    <td width="36%" align="center">
+      <a href="docs/videos/episode_0_x6_gopro.mp4">
+        <img src="docs/videos/episode_0_x6_gopro_preview.gif" alt="GoPro view — click to play video" width="100%">
+      </a>
+    </td>
+  </tr>
+</table>
+
 > [!IMPORTANT]
 > **Isaac Sim 5.1 NVIDIA driver compatibility:** On Ubuntu 24.04 with an
 > RTX 5080, NVIDIA driver `595.84` causes Isaac Sim 5.1 / Kit 107.3.3 to
